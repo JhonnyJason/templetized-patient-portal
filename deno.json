@@ -1,0 +1,12 @@
+{
+  "tasks": {
+    "dev": "deno run --watch --deny-env --allow-read --allow-write",
+    "introspect-original": "deno run --allow-net=0.0.0.0 --allow-read=./original-html ./src/introspect-files.js ./original-html/",
+    "introspect-output": "deno run --allow-net=0.0.0.0 --allow-read=./original-html ./src/introspect-files.js ./output-html/",
+    "dissect-html": "deno run --allow-read=./original-html --allow-write=./dissected ./src/dissect-html.js $1"
+  },
+  "lint":{ "rules": { "exclude": ["no-var"]  } },
+  "imports": {
+    "@std/path": "jsr:@std/path@^1.1.3"
+  }
+}
