@@ -3,8 +3,9 @@ import fs from "node:fs"
 import { resolve } from "@std/path";
 
 //##############################################################################
-const filePath = resolve(".", Deno.args[0])
+const filePath = Deno.args[0]? resolve(".", Deno.args[0]) : resolve(".", "original-html/input.html")
 console.log(filePath)
+
 const strippedHTMLPath = resolve(".", "dissected/stripped.html")
 const styleCSSPath = resolve(".", "dissected/style.css")
 const scriptJSPath = resolve(".", "dissected/script.js")

@@ -8,7 +8,7 @@ The possibility for easy translation of the content.json is an additional benefi
 - There is an expected structure HTML[head[..., style ], body[..., script]]
 - The Style.css and script.js may be easily cut out here -> notify if the expected structure is violated.
 
-### Initial Templatization (src/templetize.js = deno run templetize)
+### Initial Templatization (src/templatize.js = deno run templatize)
 - Run raw templetization -> template.mustache + content.json
 
 ### Find Repeating Patterns in Normalized Template (src/)
@@ -30,9 +30,8 @@ The possibility for easy translation of the content.json is an additional benefi
 ## TODOs
 - [x] serve HTML -> inspection of input and output
 - [x] Dissect original HTML to: stripped.html + style.css + script.js
-- [ ] Templatize stripped.html: dynamic-templates + dynamic.json + static-template + static.json
-- [ ] Create render-logic for dynamic content: prepend to script.js
-- [ ] Render outputHTML by:  (static-template + content.json + css + script) -> output HTML
+- [x] Templatize stripped.html: dynamic-templates + dynamic.json + static-template + static.json
+- [ ] build pipeline connected with the repository for the implementation -> content to language content repository, document-head to separated repository and indexbody to separate repository
 
 ## Scripts/Testing
 

@@ -1,0 +1,1275 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <title>SustSol – SusDoX Web | Untersuchungen</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <style>
+    /* ======================================================================
+       RESET & BASIS
+       ====================================================================== */
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+
+    /* ======================================================================
+       CI / DESIGN TOKENS (angepasst an bilder-befunde.at Look & Feel)
+       ----------------------------------------------------------------------
+       WICHTIG: Wir ändern NUR Variablen, damit Layout/UX unverändert bleibt.
+       So kann dein Webdesigner später feinjustieren, ohne überall CSS zu suchen.
+
+       LAYOUT-SPECS (Desktop):
+       - Content max-width: 1200px (siehe .page)
+       - Page padding: 40px links/rechts ab 1280px Viewport, sonst 16px
+       - Header padding: 20px 24px (oben/unten, links/rechts)
+       - Header Card Radius: 16px
+       - Card Shadow: soft
+       - Buttons: padding 6px 14px, Pill-Form (radius 999px)
+       - Modal: max-width 600px, padding 20px 24px 16px
+       ====================================================================== */
+
+    :root {
+      /* Hintergrund/Flächen */
+      --bg-body: #F5F7FA;        /* Page background (helles Grau/Blau) */
+      --bg-surface: #ffffff;     /* Karten/Flächen weiß */
+
+      /* Text */
+      --text-main: #333A45;      /* Haupttext (dunkles Grau statt Schwarz) */
+      --text-muted: #425466;     /* sekundärer Text (leicht bläulich) */
+      --text-subtle: #6B7280;    /* Hinweis-/Meta-Text */
+
+      /* Borders */
+      --border-subtle: #E5E7EB;  /* leichte Border */
+
+      /* Akzente (CI) */
+      --accent-purple: #1A5C96;  /* CI-Hauptfarbe (Blau) -> ersetzt bisheriges Lila */
+      --accent-yellow: #20A29D;  /* CI-Sekundärfarbe (Türkis) -> ersetzt bisheriges Gelb-Pünktchen */
+
+      /* Focus (A11y) */
+      --focus-ring: #1A5C96;     /* Fokusfarbe = CI-Blau, gut sichtbar auf hellen Flächen */
+
+      /* Radius / Shadows */
+      --radius-lg: 16px;         /* abgerundete Ecken (Cards/Modal) */
+      --shadow-soft: 0 8px 22px rgba(15, 23, 42, 0.08);
+      --shadow-soft-strong: 0 12px 28px rgba(15, 23, 42, 0.15);
+
+      /* Zusatz-Tokens für KI-Disclaimer (NEU) */
+      --info-bg: #ECF4FA;         /* dezentes Info-Panel */
+      --info-border: #20A29D;     /* Türkis-Akzentstreifen */
+      --price-bg: #E8F3FF;        /* Badge Hintergrund */
+      --price-text: #1A5C96;      /* Badge Text */
+      --danger-text: #8A1C1C;     /* optional für Warnhinweise */
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg-body);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text-main);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ======================================================================
+       ACCESSIBILITY: SKIP LINK
+       ----------------------------------------------------------------------
+       Maße:
+       - Position: top/left 8px
+       - Padding: 8px 12px
+       - Wird per :focus eingeblendet (translateY)
+       ====================================================================== */
+    .skip-link {
+      position: absolute;
+      left: 8px;
+      top: 8px;
+      padding: 8px 12px;
+      background: var(--accent-purple);
+      color: #ffffff;
+      border-radius: 999px;
+      text-decoration: none;
+      font-size: 0.9rem;
+      transform: translateY(-150%);
+      transition: transform 0.15s ease;
+      z-index: 50;
+    }
+
+    .skip-link:focus {
+      transform: translateY(0);
+      outline: none;
+    }
+
+    /* ======================================================================
+       PAGE-LAYOUT
+       ----------------------------------------------------------------------
+       Maße:
+       - max-width: 1200px (Standard Desktop Contentbreite)
+       - padding: 40px 16px 60px (oben, seiten, unten)
+       - ab 1280px: padding-left/right 40px (typischer Desktop-Rand)
+       ====================================================================== */
+    .page {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 40px 16px 60px;
+    }
+
+    @media (min-width: 1280px) {
+      .page {
+        padding-left: 40px;
+        padding-right: 40px;
+      }
+    }
+
+    /* ======================================================================
+       HEADER
+       ----------------------------------------------------------------------
+       Maße:
+       - Padding: 20px 24px
+       - Border-radius: 16px
+       - Gap: 16px
+       - Shadow: soft
+       ====================================================================== */
+    header {
+      background: var(--bg-surface);
+      border-radius: var(--radius-lg);
+      padding: 20px 24px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      box-shadow: var(--shadow-soft);
+      margin-bottom: 32px;
+    }
+
+    .brand {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    /* Logo/Brand:
+       - font-size: 1.6rem (~25.6px)
+       - font-weight: 700
+    */
+    .brand-main {
+      font-size: 1.6rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Brand Dot:
+       - 10x10 px
+       - CI-Sekundärfarbe (Türkis)
+    */
+    .brand-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: var(--accent-yellow);
+    }
+
+    .brand-sub {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--text-subtle);
+    }
+
+    /* Navigation:
+       - gap: 16px
+       - font-size: 0.95rem (~15.2px)
+    */
+    nav[aria-label="Hauptnavigation"] {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      font-size: 0.95rem;
+    }
+
+    .nav-link {
+      border: none;
+      background: none;
+      padding: 4px 0;
+      cursor: pointer;
+      color: var(--text-muted);
+      border-bottom: 2px solid transparent;
+      font: inherit;
+    }
+
+    .nav-link:hover {
+      color: var(--text-main);
+    }
+
+    /* Active Tab:
+       - underline in CI primary blue
+    */
+    .nav-link[aria-current="page"] {
+      color: var(--accent-purple);
+      font-weight: 600;
+      border-bottom-color: var(--accent-purple);
+    }
+
+    .nav-link:focus-visible,
+    .logout-btn:focus-visible {
+      outline: 2px solid var(--focus-ring);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+
+    .logout-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid var(--border-subtle);
+      border-radius: 999px;
+      padding: 6px 14px;
+      background: #f9fafb;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+
+    .logout-btn:hover {
+      background: #e5e7eb;
+      color: var(--text-main);
+    }
+
+    /* ======================================================================
+       MAIN
+       ----------------------------------------------------------------------
+       - gap: 24px zwischen Abschnitten
+       ====================================================================== */
+    main {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .page-title {
+      font-size: 1.4rem;  /* ~22.4px */
+      font-weight: 600;
+    }
+
+    .page-description {
+      font-size: 0.95rem; /* ~15.2px */
+      color: var(--text-subtle);
+      margin-top: -4px;
+    }
+
+    /* ======================================================================
+       PATIENT CARD
+       ----------------------------------------------------------------------
+       Maße:
+       - Padding: 20px 24px
+       - Icon: 48x48
+       - Gap: 16px
+       ====================================================================== */
+    .patient-card {
+      background: var(--bg-surface);
+      border-radius: var(--radius-lg);
+      padding: 20px 24px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 16px;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .patient-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 999px;
+      background: #eef2ff; /* bewusst dezent belassen */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+      color: var(--accent-purple);
+      flex-shrink: 0;
+    }
+
+    .patient-info {
+      min-width: 0;
+    }
+
+    .patient-name {
+      font-size: 1.1rem; /* ~17.6px */
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    .patient-meta {
+      font-size: 0.9rem; /* ~14.4px */
+      color: var(--text-subtle);
+    }
+
+    /* ======================================================================
+       UNTERSUCHUNGEN
+       ----------------------------------------------------------------------
+       - exam-list gap: 12px
+       - summary padding: 14px 18px
+       ====================================================================== */
+    .exam-section-header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .exam-count {
+      font-size: 0.9rem;
+      color: var(--text-subtle);
+    }
+
+    .exam-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 4px;
+    }
+
+    .exam-item {
+      background: var(--bg-surface);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-soft);
+      overflow: hidden;
+      border: 1px solid var(--border-subtle);
+    }
+
+    .exam-item summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .exam-item summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .exam-header-main {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .exam-folder-icon {
+      font-size: 1.5rem;
+      flex-shrink: 0;
+    }
+
+    .exam-text-block {
+      min-width: 0;
+    }
+
+    .exam-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-main);
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+    }
+
+    .exam-sub {
+      font-size: 0.85rem;
+      color: var(--text-subtle);
+      margin-top: 2px;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+    }
+
+    .exam-header-meta {
+      text-align: right;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .exam-date {
+      font-weight: 600;
+      display: block;
+    }
+
+    .exam-type {
+      font-size: 0.8rem;
+    }
+
+    .exam-chevron {
+      margin-left: 8px;
+      font-size: 1rem;
+      color: var(--text-subtle);
+      flex-shrink: 0;
+    }
+
+    details[open] .exam-chevron {
+      transform: rotate(90deg);
+    }
+
+    .exam-item summary:focus-visible {
+      outline: 2px solid var(--focus-ring);
+      outline-offset: 2px;
+    }
+
+    .exam-body {
+      border-top: 1px solid var(--border-subtle);
+      padding: 12px 18px 16px;
+      font-size: 0.9rem;
+      background: #f9fafb;
+    }
+
+    .exam-body-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+      gap: 8px 24px;
+    }
+
+    .exam-body-label {
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-right: 4px;
+    }
+
+    .exam-body-row + .exam-body-row {
+      margin-top: 4px;
+    }
+
+    .exam-actions {
+      margin-top: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    /* Buttons:
+       - btn-primary nutzt CI primary blue (via --accent-purple)
+       - Radius: 999px (Pill)
+       - Padding: 6px 14px (visuelle Höhe ~32-36px je nach Font)
+    */
+    .btn-primary {
+      border-radius: 999px;
+      border: none;
+      padding: 6px 14px;
+      background: var(--accent-purple);
+      color: #ffffff;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+
+    .btn-secondary {
+      border-radius: 999px;
+      border: 1px solid var(--border-subtle);
+      padding: 6px 14px;
+      background: #ffffff;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+
+    /* Hover:
+       - Primary slightly darker for feedback (CI-konform)
+    */
+    .btn-primary:hover {
+      background: #144a7a; /* dunkleres CI-Blau */
+    }
+
+    .btn-secondary:hover {
+      background: #f3f4f6;
+    }
+
+    .btn-primary:focus-visible,
+    .btn-secondary:focus-visible {
+      outline: 2px solid var(--focus-ring);
+      outline-offset: 2px;
+    }
+
+    /* ======================================================================
+       FOOTER
+       ====================================================================== */
+    footer {
+      margin-top: 40px;
+      font-size: 0.8rem;
+      text-align: center;
+      color: var(--text-subtle);
+      padding: 12px 0;
+    }
+
+    /* ======================================================================
+       MODAL / KI DIALOG
+       ----------------------------------------------------------------------
+       Maße:
+       - Backdrop: fixed inset 0
+       - Modal: max-width 600px, width 100%
+       - Padding: 20px 24px 16px
+       - Result max-height: 220px
+       ====================================================================== */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+
+    .modal-backdrop[aria-hidden="false"] {
+      display: flex;
+    }
+
+    .modal {
+      max-width: 600px;
+      width: 100%;
+      background: var(--bg-surface);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-soft-strong);
+      padding: 20px 24px 16px;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .modal-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+
+    .modal-close-btn {
+      border: none;
+      background: none;
+      cursor: pointer;
+      font-size: 1.2rem;
+      color: var(--text-subtle);
+    }
+
+    .modal-close-btn:focus-visible {
+      outline: 2px solid var(--focus-ring);
+      outline-offset: 2px;
+    }
+
+    .modal-text {
+      font-size: 0.9rem;
+      color: var(--text-subtle);
+      margin-bottom: 12px;
+    }
+
+    /* =========================
+       NEU: Disclaimer-Block
+       -------------------------
+       - Hintergrund: --info-bg
+       - linker Akzent: 4px --info-border
+       - padding: 12px 14px
+       - font-size: 0.88rem (~14px)
+       ========================= */
+    .modal-disclaimer {
+      background: var(--info-bg);
+      border-left: 4px solid var(--info-border);
+      padding: 12px 14px;
+      border-radius: 10px;
+      margin: 10px 0 12px 0;
+      font-size: 0.88rem;
+      color: var(--text-main);
+    }
+
+    .modal-disclaimer strong {
+      color: var(--accent-purple);
+    }
+
+    .modal-price-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-top: 8px;
+    }
+
+    .price-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--price-bg);
+      color: var(--price-text);
+      border: 1px solid rgba(26, 92, 150, 0.25);
+      font-weight: 600;
+      font-size: 0.85rem;
+    }
+
+    /* Checkbox-Row (A11y):
+       - Ziel: User bestätigt Kosten/Anonymisierung
+    */
+    .modal-consent {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      margin-top: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      background: #fff;
+    }
+
+    .modal-consent input {
+      margin-top: 3px;
+    }
+
+    .modal-consent label {
+      font-size: 0.88rem;
+      color: var(--text-main);
+    }
+
+    .modal-consent small {
+      display: block;
+      color: var(--text-subtle);
+      margin-top: 2px;
+    }
+
+    .modal-consent-error {
+      display: none;
+      margin-top: 8px;
+      font-size: 0.88rem;
+      color: var(--danger-text);
+    }
+
+    .modal-form-row {
+      margin-bottom: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .modal-label {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .modal-select,
+    .modal-textarea {
+      width: 100%;
+      font-size: 0.9rem;
+      padding: 6px 8px;
+      border-radius: 8px;
+      border: 1px solid var(--border-subtle);
+      font-family: inherit;
+      resize: vertical;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 8px;
+      margin-bottom: 6px;
+    }
+
+    .modal-result {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: #f9fafb;
+      border: 1px dashed var(--border-subtle);
+      font-size: 0.9rem;
+      max-height: 220px;
+      overflow: auto;
+    }
+
+    .modal-result-placeholder {
+      color: var(--text-subtle);
+      font-style: italic;
+    }
+
+    .modal-loading {
+      font-size: 0.9rem;
+      color: var(--accent-purple); /* CI-Blau statt Lila */
+      margin-top: 6px;
+    }
+
+    /* Disabled State für Start-Button (NEU) */
+    .btn-primary[disabled] {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    @media (max-width: 720px) {
+      header {
+        align-items: flex-start;
+      }
+      nav[aria-label="Hauptnavigation"] {
+        width: 100%;
+        justify-content: flex-start;
+      }
+      .exam-body-grid {
+        grid-template-columns: 1fr;
+      }
+      .exam-header-meta {
+        text-align: left;
+      }
+      .modal {
+        max-width: 90%;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Skip-Link für Screenreader & Tastatur -->
+  <a href="#main" class="skip-link">Zum Hauptinhalt springen</a>
+
+  <div class="page">
+    <header>
+      <div class="brand">
+        <div class="brand-main">
+          <span>SustSol</span>
+          <span class="brand-dot" aria-hidden="true"></span>
+        </div>
+        <div class="brand-sub">SusDoX Web – Patientenportal</div>
+      </div>
+
+      <nav aria-label="Hauptnavigation">
+        <button class="nav-link" aria-current="page">Untersuchungen</button>
+        <button class="nav-link">Mein Account</button>
+        <button class="nav-link">Support</button>
+      </nav>
+
+      <button class="logout-btn" type="button" aria-label="Abmelden">
+        <span>Logout</span>
+        <span aria-hidden="true">⎋</span>
+      </button>
+    </header>
+
+    <main id="main" tabindex="-1">
+      <section aria-labelledby="page-title">
+        <h1 id="page-title" class="page-title">Meine Untersuchungen</h1>
+        <p class="page-description">
+          Hier finden Sie eine Übersicht Ihrer bisherigen Untersuchungen. Sie können die Ordner aufklappen,
+          um Details anzuzeigen, Befunde zu öffnen oder eine KI-gestützte Erklärung/Übersetzung zu erhalten.
+        </p>
+      </section>
+
+      <!-- Patientendaten -->
+      <section class="patient-card dynamic" aria-label="Patientendaten">
+        <div class="patient-icon" aria-hidden="true">👤</div>
+        <div class="patient-info">
+          <div class="patient-name">M.A. Lackner Peregrin</div>
+          <div class="patient-meta">
+            SV-Nummer: 1322 · Geboren am 07.04.1979
+          </div>
+        </div>
+      </section>
+
+      <!-- Untersuchungen-Liste -->
+      <section aria-label="Liste der Untersuchungen">
+        <div class="exam-section-header">
+          <h2 class="page-title" style="font-size: 1.1rem;">Untersuchungsübersicht</h2>
+          <div class="exam-count dynamic" aria-live="polite">
+            3 Einträge gefunden
+          </div>
+        </div>
+
+        <div class="exam-list dynamic-list">
+          <!-- Beispielhafte Einträge mit fiktiver examId für KI-Aufrufe -->
+          <details class="exam-item dynamic-list-item">
+            <summary>
+              <div class="exam-header-main">
+                <div class="exam-folder-icon" aria-hidden="true">📂</div>
+                <div class="exam-text-block">
+                  <div class="exam-title">LG2, SOSD, SOON</div>
+                  <div class="exam-sub">Dr. Josef Rechberger · Radiologie</div>
+                </div>
+              </div>
+              <div class="exam-header-meta">
+                <span class="exam-date">25.07.2024</span>
+                <span class="exam-type">Röntgen / MRT</span>
+              </div>
+              <div class="exam-chevron" aria-hidden="true">▶</div>
+            </summary>
+            <div class="exam-body">
+              <div class="exam-body-grid">
+                <div>
+                  <div class="exam-body-row">
+                    <span class="exam-body-label">Behandler:</span>
+                    <span>Dr. Josef Rechberger</span>
+                  </div>
+                  <div class="exam-body-row">
+                    <span class="exam-body-label">Institut:</span>
+                    <span>Radiologie Rechberger</span>
+                  </div>
+                  <div class="exam-body-row">
+                    <span class="exam-body-label">Leistung:</span>
+                    <span>LG2, SOSD, SOON</span>
+                  </div>
+                </div>
+                <div>
+                  <div class="exam-body-row">
+                    <span class="exam-body-label">Datum:</span>
+                    <span>25.07.2024</span>
+                  </div>
+                  <div class="exam-body-row">
+                    <span class="exam-body-label">Status:</span>
+                    <span>Befund liegt vor</span>
+                  </div>
+                </div>
+              </div>
+              <div class="exam-actions">
+                <button class="btn-primary" type="button">
+                  Befund öffnen (PDF)
+                </button>
+                <button class="btn-secondary" type="button">
+                  Bilder anzeigen
+                </button>
+
+                <!-- NEU: KI-Funktionen -->
+                <button
+                  class="btn-secondary js-ki-explain"
+                  type="button"
+                >
+                  Befund einfach erklären (KI)
+                </button>
+                <button
+                  class="btn-secondary js-ki-translate"
+                  type="button"
+                >
+                  Befund übersetzen (KI)
+                </button>
+              </div>
+            </div>
+          </details>
+
+          <details class="exam-item dynamic-list-item">
+            <summary>
+              <div class="exam-header-main">
+                <div class="exam-folder-icon" aria-hidden="true">📂</div>
+                <div class="exam-text-block">
+                  <div class="exam-title">MRSCHUR 2014 F</div>
+                  <div class="exam-sub">MR-CT Diagnose Institut Klagenfurt</div>
+                </div>
+              </div>
+              <div class="exam-header-meta">
+                <span class="exam-date">22.10.2020</span>
+                <span class="exam-type">MRT</span>
+              </div>
+              <div class="exam-chevron" aria-hidden="true">▶</div>
+            </summary>
+            <div class="exam-body">
+              <div class="exam-body-grid">
+                <div>
+                  <div class="exam-body-row">
+                    <span class="exam-body-label">Behandler:</span>
+                    <span>MR-CT Diagnose Institut</span>
+                  </div>
+                  <div class="exam-body-row">
+                    <span class="exam-body-label">Ort:</span>
+                    <span>Klagenfurt</span>
+                  </div>
+                  <div class="exam-body-row">
+                    <span class="exam-body-label">Leistung:</span>
+                    <span>MRSCHUR 2014 F</span>
+                  </div>
+                </div>
+                <div>
+                  <div class="exam-body-row">
+                    <span class="exam-body-label">Datum:</span>
+                    <span>22.10.2020</span>
+                  </div>
+                  <div class="exam-body-row">
+                    <span class="exam-body-label">Status:</span>
+                    <span>Befund liegt vor</span>
+                  </div>
+                </div>
+              </div>
+              <div class="exam-actions">
+                <button class="btn-primary" type="button">
+                  Befund öffnen (PDF)
+                </button>
+                <button class="btn-secondary" type="button">
+                  Bilder anzeigen
+                </button>
+
+                <!-- NEU: KI-Funktionen -->
+                <button
+                  class="btn-secondary js-ki-explain"
+                  type="button"
+                >
+                  Befund einfach erklären (KI)
+                </button>
+                <button
+                  class="btn-secondary js-ki-translate"
+                  type="button"
+                >
+                  Befund übersetzen (KI)
+                </button>
+              </div>
+            </div>
+          </details>
+
+          <details class="exam-item">
+            <summary>
+              <div class="exam-header-main">
+                <div class="exam-folder-icon" aria-hidden="true">📂</div>
+                <div class="exam-text-block">
+                  <div class="exam-title">LG2</div>
+                  <div class="exam-sub">Dr. Salcher &amp; Dr. Grabner-Frankl</div>
+                </div>
+              </div>
+              <div class="exam-header-meta">
+                <span class="exam-date">29.03.2018</span>
+                <span class="exam-type">Labor</span>
+              </div>
+              <div class="exam-chevron" aria-hidden="true">▶</div>
+            </summary>
+            <div class="exam-body">
+              <div class="exam-body-grid">
+                <div>
+                  <div class="exam-body-row">
+                    <span class="exam-body-label">Behandler:</span>
+                    <span>Dr. Salcher &amp; Dr. Grabner-Frankl</span>
+                  </div>
+                  <div class="exam-body-row">
+                    <span class="exam-body-label">Leistung:</span>
+                    <span>LG2</span>
+                  </div>
+                </div>
+                <div>
+                  <div class="exam-body-row">
+                    <span class="exam-body-label">Datum:</span>
+                    <span>29.03.2018</span>
+                  </div>
+                  <div class="exam-body-row">
+                    <span class="exam-body-label">Status:</span>
+                    <span>Archiviert</span>
+                  </div>
+                </div>
+              </div>
+              <div class="exam-actions">
+                <button class="btn-secondary" type="button">
+                  Befund öffnen (PDF)
+                </button>
+
+                <!-- NEU: KI-Funktionen -->
+                <button
+                  class="btn-secondary js-ki-explain"
+                  type="button"
+                >
+                  Befund einfach erklären (KI)
+                </button>
+                <button
+                  class="btn-secondary js-ki-translate"
+                  type="button"
+                >
+                  Befund übersetzen (KI)
+                </button>
+              </div>
+            </div>
+          </details>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      © SustSol GmbH · SusDoX Web Patientenportal
+    </footer>
+  </div>
+
+  <!--
+    MODAL: KI-BEFUNDERKLÄRUNG / ÜBERSETZUNG
+    - Wird von allen „KI“-Buttons verwendet
+    - Barrierefrei: role="dialog", aria-modal, Fokussteuerung per JS
+  -->
+  <div
+    class="modal-backdrop"
+    id="ki-modal-backdrop"
+    role="presentation"
+    aria-hidden="true"
+  >
+    <div
+      class="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="ki-modal-title"
+      aria-describedby="ki-modal-description"
+    >
+      <div class="modal-header">
+        <h2 id="ki-modal-title" class="modal-title">
+          KI-Unterstützung für Ihren Befund
+        </h2>
+        <button
+          type="button"
+          class="modal-close-btn"
+          aria-label="Dialog schließen"
+          id="ki-modal-close-btn"
+        >
+          ×
+        </button>
+      </div>
+
+      <p id="ki-modal-description" class="modal-text">
+        Hier können Sie Ihren Befund in einfacher Sprache erklären oder in eine andere Sprache
+        übersetzen lassen. Dieser Service ersetzt keine ärztliche Beratung.
+      </p>
+
+      <!-- =========================
+           NEU: Disclaimer (Anonymisierung + Kosten + Partner)
+           - bewusst VOR den Eingabefeldern platziert (Usability: erst informieren, dann handeln)
+           ========================= -->
+      <div class="modal-disclaimer" role="note" aria-label="Hinweis zu Anonymisierung und Kosten">
+        <strong>Wichtiger Hinweis:</strong><br />
+        Ihr Befund wird vor der Verarbeitung automatisch <strong>anonymisiert</strong> und erst danach
+        an den KI-Dienst in Kooperation mit <strong>Radishmed / MedUni Graz</strong> weitergeleitet.<br />
+        <div class="modal-price-row">
+          <span class="price-badge" aria-label="Preis">
+            Preis: 2,50&nbsp;€ pro Befundvereinfachung
+          </span>
+        </div>
+        <div style="margin-top:6px; color: var(--text-subtle);">
+          Die KI-Erklärung dient der Verständlichkeit und ersetzt keine ärztliche Diagnose oder Beratung.
+        </div>
+      </div>
+
+      <!-- NEU: Consent-Checkbox (damit der User aktiv zustimmt; Start-Button erst dann aktiv) -->
+      <div class="modal-consent">
+        <input type="checkbox" id="ki-consent" />
+        <label for="ki-consent">
+          Ich habe den Hinweis zur <strong>Anonymisierung</strong> gelesen und akzeptiere die
+          <strong>Kosten von 2,50&nbsp;€</strong> für diese Anfrage.
+          <small>Sie können den Vorgang jederzeit mit „Abbrechen“ beenden.</small>
+        </label>
+      </div>
+      <div id="ki-consent-error" class="modal-consent-error" aria-live="polite">
+        Bitte bestätigen Sie zuerst Anonymisierung und Kosten, um fortzufahren.
+      </div>
+
+      <!-- Form-Elemente zur Steuerung des KI-Calls -->
+      <div class="modal-form-row">
+        <label class="modal-label" for="ki-mode-select">Funktion:</label>
+        <select id="ki-mode-select" class="modal-select">
+          <option value="explain">Befund einfach erklären</option>
+          <option value="translate">Befund übersetzen</option>
+        </select>
+      </div>
+
+      <div class="modal-form-row">
+        <label class="modal-label" for="ki-language-select">
+          Zielsprache (für Erklärung oder Übersetzung):
+        </label>
+        <select id="ki-language-select" class="modal-select">
+          <option value="de-easy">Deutsch – einfache Sprache (Empfehlung)</option>
+          <option value="de">Deutsch (Fachsprache)</option>
+          <option value="en">Englisch</option>
+          <option value="hr">Kroatisch</option>
+          <option value="sr">Serbisch</option>
+          <option value="bs">Bosnisch</option>
+          <option value="tr">Türkisch</option>
+        </select>
+      </div>
+
+      <div class="modal-form-row">
+        <label class="modal-label" for="ki-notes">
+          Optional: Eigene Frage / Hinweis an die KI:
+        </label>
+        <textarea
+          id="ki-notes"
+          class="modal-textarea"
+          rows="2"
+          placeholder="Zum Beispiel: Bitte erklären Sie mir besonders den Teil über die Lunge."
+        ></textarea>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="ki-modal-cancel-btn">
+          Abbrechen
+        </button>
+        <!-- Start-Button wird per JS aktiviert, wenn Consent gesetzt ist -->
+        <button type="button" class="btn-primary" id="ki-modal-start-btn" disabled>
+          KI-Anfrage starten
+        </button>
+      </div>
+
+      <div id="ki-modal-loading" class="modal-loading" style="display:none;">
+        KI-Anfrage wird verarbeitet … bitte warten.
+      </div>
+
+      <div id="ki-modal-result" class="modal-result">
+        <div class="modal-result-placeholder">
+          Hier erscheint die KI-Erklärung oder Übersetzung zum ausgewählten Befund.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ############################################################
+    //  FRONTEND-LOGIK FÜR DIE KI-INTEGRATION (dein Code bleibt erhalten)
+    //  + kleine Erweiterung: Consent-Checkbox steuert Start-Button
+    // ############################################################
+
+    const kiModalBackdrop = document.getElementById('ki-modal-backdrop');
+    const kiModalCloseBtn = document.getElementById('ki-modal-close-btn');
+    const kiModalCancelBtn = document.getElementById('ki-modal-cancel-btn');
+    const kiModalStartBtn = document.getElementById('ki-modal-start-btn');
+    const kiModeSelect = document.getElementById('ki-mode-select');
+    const kiLanguageSelect = document.getElementById('ki-language-select');
+    const kiNotesInput = document.getElementById('ki-notes');
+    const kiResultBox = document.getElementById('ki-modal-result');
+    const kiLoadingText = document.getElementById('ki-modal-loading');
+
+    // NEU: Consent Elemente
+    const kiConsent = document.getElementById('ki-consent');
+    const kiConsentError = document.getElementById('ki-consent-error');
+
+    let kiCurrentExamId = null;
+    let kiLastFocusedElement = null;
+
+    // Utility: Modal öffnen
+    function openKiModal(examId, mode) {
+      kiCurrentExamId = examId;
+      kiLastFocusedElement = document.activeElement;
+
+      if (mode === 'explain') {
+        kiModeSelect.value = 'explain';
+      } else if (mode === 'translate') {
+        kiModeSelect.value = 'translate';
+      }
+
+      // Vorherigen Inhalt zurücksetzen
+      kiNotesInput.value = '';
+      kiResultBox.innerHTML =
+        '<div class="modal-result-placeholder">Hier erscheint die KI-Erklärung oder Übersetzung zum ausgewählten Befund.</div>';
+      kiLoadingText.style.display = 'none';
+
+      // NEU: Consent Reset
+      kiConsent.checked = false;
+      kiModalStartBtn.disabled = true;
+      kiConsentError.style.display = 'none';
+
+      // Modal sichtbar setzen
+      kiModalBackdrop.setAttribute('aria-hidden', 'false');
+
+      // Fokus in den Dialog setzen (Barrierefreiheit)
+      kiModeSelect.focus();
+    }
+
+    // Utility: Modal schließen
+    function closeKiModal() {
+      kiModalBackdrop.setAttribute('aria-hidden', 'true');
+      kiCurrentExamId = null;
+
+      if (kiLastFocusedElement && typeof kiLastFocusedElement.focus === 'function') {
+        kiLastFocusedElement.focus();
+      }
+    }
+
+    // ESC-Taste zum Schließen des Dialogs
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && kiModalBackdrop.getAttribute('aria-hidden') === 'false') {
+        closeKiModal();
+      }
+    });
+
+    // Klicks auf die Schließen/Abbrechen-Buttons
+    kiModalCloseBtn.addEventListener('click', closeKiModal);
+    kiModalCancelBtn.addEventListener('click', closeKiModal);
+
+    // NEU: Consent steuert Start-Button (Usability + Kostentransparenz)
+    kiConsent.addEventListener('change', () => {
+      kiModalStartBtn.disabled = !kiConsent.checked;
+      if (kiConsent.checked) {
+        kiConsentError.style.display = 'none';
+      }
+    });
+
+    // Buttons in der Untersuchungs-Liste anbinden
+    document.querySelectorAll('.exam-item').forEach((item) => {
+      const examId = item.getAttribute('data-exam-id');
+      const explainBtn = item.querySelector('.js-ki-explain');
+      const translateBtn = item.querySelector('.js-ki-translate');
+
+      if (explainBtn) {
+        explainBtn.addEventListener('click', () => {
+          openKiModal(examId, 'explain');
+        });
+      }
+      if (translateBtn) {
+        translateBtn.addEventListener('click', () => {
+          openKiModal(examId, 'translate');
+        });
+      }
+    });
+
+    // KI Call
+    kiModalStartBtn.addEventListener('click', () => {
+      if (!kiCurrentExamId) return;
+
+      // NEU: Safety-Check (falls jemand disabled per DevTools entfernt)
+      if (!kiConsent.checked) {
+        kiConsentError.style.display = 'block';
+        return;
+      }
+
+      const mode = kiModeSelect.value;
+      const targetLanguage = kiLanguageSelect.value;
+      const notes = kiNotesInput.value.trim();
+
+      kiLoadingText.style.display = 'block';
+      kiResultBox.innerHTML = '';
+
+      const payload = {
+        examId: kiCurrentExamId,
+        mode: mode,
+        targetLanguage: targetLanguage,
+        notes: notes,
+
+        // OPTIONAL (wenn ihr es im Backend loggen wollt):
+        // priceCents: 250,
+        // partner: "Radishmed/MedUniGraz",
+        // anonymization: true
+      };
+
+      // HIER KI-PARTNER / BACKEND ANBINDEN
+      fetch('/api/ki/befund', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+        .then(async (response) => {
+          if (!response.ok) throw new Error('Serverfehler: ' + response.status);
+          return response.json();
+        })
+        .then((data) => {
+          kiLoadingText.style.display = 'none';
+
+          if (data && data.success && data.resultText) {
+            kiResultBox.textContent = data.resultText;
+          } else {
+            kiResultBox.innerHTML =
+              '<div class="modal-result-placeholder">Leider konnte keine KI-Antwort erzeugt werden. Bitte versuchen Sie es später erneut.</div>';
+          }
+        })
+        .catch((error) => {
+          console.error('Fehler bei KI-Anfrage:', error);
+          kiLoadingText.style.display = 'none';
+          kiResultBox.innerHTML =
+            '<div class="modal-result-placeholder">Es ist ein Fehler bei der KI-Anfrage aufgetreten. Bitte versuchen Sie es später erneut.</div>';
+        });
+    });
+  </script>
+</body>
+</html>

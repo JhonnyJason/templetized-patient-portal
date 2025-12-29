@@ -1,0 +1,43 @@
+doctype html
+html(lang=languageTag)
+    head
+        meta(charset='utf-8')
+        
+        //- Title and Description
+        title !{pageTitle}
+        meta(name='description', content=pageDescription)
+        
+        //- Open Graph meta Tags - probably unnecessary for most simple websites
+        //- meta(property='og:image' content=pageImageURL)
+        //- meta(property='og:title' content=pageTitle)
+        //- meta(property='og:description' content=pageDescription)
+        //- meta(property='og:type' content=pageType)
+        //- meta(property='og:url' content=pageURL)
+        //- meta(property='og:locale' content=pageLocale)
+
+        //- Manifest - probably unnecessary for most simple websites
+        //- link(rel='manifest' href='data:application/manifest+json,{"name":"'+pageTitle+'", "short_name": "SusDoX", "description": "'+pageDescription+'", "start_url":"'+pageURL+'", "background_color": "rgba(255,255,255,1)", "theme_color": "rgba(255,255,255,1)", "icons": [ { "src": "'+pageRoot+'android-chrome-96x96.png", "sizes": "96x96", "type": "image/png" } ], "display": "standalone", "orientation": "portrait" }')
+
+        //- Languages + Canonical
+        link(rel="canonical" href=pageURL)
+        link(rel="alternate" hreflang="x-default" href=xDefault)
+        each alt in alternateLangs
+            link(rel="alternate" hreflang=alt.lang href=alt.url)
+
+
+        //- Favicon - modern version from real-favicon generator
+        link(rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96")
+        link(rel="icon" type="image/svg+xml" href="/favicon.svg")
+        link(rel="shortcut icon" href="/favicon.ico")
+        link(rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png")
+        meta(name="apple-mobile-web-app-title" content=pageTitle)
+        
+
+        //- Screen
+        meta(name='viewport', content='width=device-width, initial-scale=1.0')
+
+
+        include styles-include.pug
+    body
+        include ../../source/index/indexbody.pug
+        include scripts-include.pug

@@ -1,0 +1,77 @@
+header#header
+    a(href=".")#header-logo-block
+        #header-logo
+        h1#header-subtitle !{content.headerSubtitle}
+    #header-language-tags 
+        #header-de-tag-link !{content.deTagLink} 
+        #header-en-tag-link !{content.enTagLink}
+
+main#main 
+    #main-block-top
+        #main-block-content 
+            h1#content-title !{content.contentTitleText}
+            p#content-slogan !{sharedContent.contentSloganText}
+            #doctor-login-block
+                .login-button.click-button
+                    .login-text !{content.doctorsLoginButtonText}
+                    .login-arrow: svg: use(href="#svg-right-chevron")
+            #patient-login-block
+                .login-button.click-button
+                    .login-text !{content.patientsLoginButtonText}
+                    .login-arrow: svg: use(href="#svg-right-chevron")
+            #support-block: include ../../supportbuttonmodule/supportbutton.pug
+        #main-block-decoration 
+            p !{content.serviceNotice}
+
+footer#footer
+    .sustsol-icon
+    .footer-text-block
+        .sustsol-text !{sharedContent.footerText}
+        .footer-links !{sharedContent.footerLinks}
+        //- .sustsol-icon
+
+template#template-one 
+    .currency-pair
+        .left
+            .inner-frame
+                .title {{{short}}}
+                .score {{{score}}}
+        .right
+            b.trend-text {{{rightText}}}
+
+template#template-two 
+    .economic-area
+        .top
+            .flag: svg: use(href="{{{icon-href}}}")
+            .title {{{title}}}
+        .inflation-rate
+            p.label !{content.inflationTitle} 
+            p.value {{{inflation}}}
+            .click-button.info-button: svg: use(href="#svg-info-icon")
+        .refinancing-rate
+            p.label !{content.policyRateTitle} 
+            p.value {{{policyRate}}}
+            .click-button.info-button: svg: use(href="#svg-info-icon")
+        .gdp-growth
+            p.label !{content.gdpGrowthTitle} 
+            p.value {{{gdpg}}}
+            .click-button.info-button: svg: use(href="#svg-info-icon")
+        .cot-index-6 
+            p.label !{content.cotIndex6Title} 
+            p.value {{{cotIndex6}}}
+            .click-button.info-button: svg: use(href="#svg-info-icon")
+
+        .cot-index-36
+            p.label !{content.cotIndex36Title} 
+            p.value {{{cotIndex36}}}
+            .click-button.info-button: svg: use(href="#svg-info-icon")
+
+        .info-display 
+            .info-header
+                svg.info-icon: use(href="#svg-info-icon")
+                .click-button.close-button: svg: use(href="#svg-cross-icon")
+            .info-title !{content.specialInfoTitel}
+            .info-description !{content.specialInfoDescription}
+
+
+
