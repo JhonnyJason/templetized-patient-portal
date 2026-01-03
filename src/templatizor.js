@@ -2,8 +2,7 @@
 import { DOMParser, Node } from "jsr:@b-fuze/deno-dom"
 import fs, { cp } from "node:fs"
 import { resolve } from "@std/path"
-// import html2pug from "https://raw.githubusercontent.com/JhonnyJason/html2pug/refs/heads/main/src/index.js"
-import html2pug from "npm:html2pug"
+import html2pug from "https://raw.githubusercontent.com/JhonnyJason/html2pug/refs/heads/main/src/index.js"
 
 //##############################################################################
 import { textStyleTags, textMetaTags, regularTags } from "./htmlTags.js"
@@ -18,19 +17,40 @@ const inputHTMLPath = resolve(".", "dissected/stripped.html")
 const outputDocumentHeadPath = resolve(".", "dissected/document-head.mustache")
 const outputBodyPath = resolve(".", "dissected/body.mustache")
 const outputJSONPath = resolve(".", "dissected/full-content.json")
-
+const outputMetaPath = resolve(".", "dissected/meta.json")
 
 //##############################################################################
 // static string definitions
 const htmlTag = "html(lang=languageTag)\n"
-const bodySection = "\n\n    include styles-include.pug\nbody\n    include ../../source/index/indexbody.pug\n    include scripts-include.pug"
+// const bodySection = "\n\n    include styles-include.pug\nbody\n    include ../../source/index/indexbody.pug\n    include scripts-include.pug"
+const bodySection = "\n\n        include {{{stylesInclude}}}\n    body\n        include {{{bodyInclude}}}\n        include {{{scriptsInclude}}}"
+
+//##############################################################################
+const textAttributes = ["aria-label", "placeholder"]
 
 //##############################################################################
 // global variables
-var doc = null;
-var idBase = "unuID"; //unused ID
-var idCount = 0;
-const content = {};
+var doc = null
+var idBase = "unuID" //unused ID
+var idCount = 0
+
+//##############################################################################
+const content = {}
+const metaMap = {}
+const attributeReplacements = []
+
+
+//##############################################################################
+// addToContent(content, "stylesInclude", "styles-include.pug")
+content.stylesInclude = "styles-include.pug"
+// addToContent(content, "bodyInclude", "../../source/index/indexbody.pug")
+content.bodyInclude = "../../source/index/indexbody.pug"
+// addToContent(content, "scriptsInclude","scripts-include.pug")
+content.scriptsInclude = "scripts-include.pug"
+
+//##############################################################################
+var keyBase = "unuKey" // unused Key
+var keyCount = "0"
 
 //##############################################################################
 function prepareAndWriteDocumentHead(pugString) {
@@ -53,21 +73,27 @@ function main() {
     const body = doc.body
 
     // works already TODO uncomment when everything else works as well ;-)
-    // templatize(head, content, "")
-    // var pugHead = toPug(head.outerHTML)
-    // prepareAndWriteDocumentHead(pugHead)    
+    templatize(head, content, "")
+    var pugHeadMustache = toPug(head.outerHTML)
+    pugHeadMustache = processAttributeReplacements(pugHeadMustache)
+    prepareAndWriteDocumentHead(pugHeadMustache)    
 
     templatize(body, content, "")
+    cleanOutIndexKeys(content)
     writeDynamicTemplatesToBody(body, content)
 
     const fullContentString = JSON.stringify(content, null, 4)
     fs.writeFileSync(outputJSONPath, fullContentString)
-    
+    const metaString = JSON.stringify(metaMap, null, 4)
+    fs.writeFileSync(outputMetaPath, metaString)
+
+
     const bodyHTML = body.innerHTML
     // log(bodyHTML)
-    const pugBody = toPugFragment(bodyHTML)
+    var pugBodyMustache = toPugFragment(bodyHTML)
+    pugBodyMustache = processAttributeReplacements(pugBodyMustache)
     // log(pugBody)
-    fs.writeFileSync(outputBodyPath, pugBody)
+    fs.writeFileSync(outputBodyPath, pugBodyMustache)
     return
 }
 
@@ -76,26 +102,54 @@ main();
 
 //##############################################################################
 function toPugFragment(html) {
-    var result = html2pug(html, { tabs: true, fragment: true })
+    var result = html2pug(html, { fragment: true })
     result = result.replaceAll('\t', '    ')
     result = result.replaceAll('\nctemplate#', '\ntemplate#')
     return result 
 }
 
 function toPug(html) {
-    var result = html2pug(html, { tabs: true })
+    var result = html2pug(html)
     result = result.replaceAll('\t', '    ')
     result = result.replaceAll('\nctemplate#', '\ntemplate#')
     return result 
 }
 
+function processAttributeReplacements(str) {
+    for(var i = 0; i < attributeReplacements.length; i++) {
+        var replacor = attributeReplacements[i]
+        str = str.replaceAll(replacor.pattern, replacor.newContent)
+    }
+    return str
+}
+
+function cleanOutIndexKeys(content) {
+    const keys = Object.keys(content)
+    for(var i = 0; i < keys.length; i++ ) {
+        var key = keys[i]
+        if(typeof content[key] === "string") { continue }
+        if(typeof content[key] === "number") { cleanOut(content, key) }
+        if(typeof content[key] === "object") { cleanOutIndexKeys(content[key])}
+    }
+}
+
+function cleanOut(content, key) {
+    const oldMeta = metaMap[key]
+    const newKey = key + ":nth-child(1)"
+    metaMap[newKey] = oldMeta
+
+    delete metaMap[key]
+    delete content[key]
+}
+
 //##############################################################################
 // the functions
-function templatizeDynamicList(el, content, breadcrumbs) {
+function templatizeDynamicList(el, content, selector) {
     // log("templatizeDynamicList")
     // log(content)
-    breadcrumbs = extendBreadcrumbs(el, breadcrumbs)
-    // log(breadcrumbs)
+    // selector = extendselector(el, selector)
+    selector = newselector(el, selector)
+    // log(selector)
 
     const subContent = {}
     const id = getUnusedID()
@@ -110,7 +164,7 @@ function templatizeDynamicList(el, content, breadcrumbs) {
     el.removeAttribute("dynamic-list")
     el.setAttribute("dynamic-id", id)
     
-    templatize(childEl, subContent, "")
+    templatize(childEl, subContent, "#"+id)
 
     childEl.setAttribute("dynamic-data-index","{{{index}}}")
     const template = childEl.outerHTML
@@ -122,16 +176,23 @@ function templatizeDynamicList(el, content, breadcrumbs) {
     content.dynamicList[id] = template
     // log(content)
 
+    Object.keys(subContent).forEach((key) => {
+        const meta = metaMap[key]
+        delete metaMap[key]
+        subContent[key] = meta
+    })
+
     fs.writeFileSync(cPath, JSON.stringify(subContent, null, 4))
     return
 }
 
 //##############################################################################
-function templatizeDynamic(el, content, breadcrumbs) {
+function templatizeDynamic(el, content, selector) {
     // log("templatizeDynamic")
     // log(content)
-    breadcrumbs = extendBreadcrumbs(el, breadcrumbs)
-    // log(breadcrumbs)
+    // selector = extendselector(el, selector)
+    selector = newselector(el, selector)
+    // log(selector)
 
     const subContent = {}
     const id = getUnusedID()
@@ -141,7 +202,7 @@ function templatizeDynamic(el, content, breadcrumbs) {
     el.removeAttribute("dynamic")
     el.setAttribute("dynamic-id", id)
     
-    templatize(el, subContent, "")
+    templatize(el, subContent, "#"+id)
 
     const template = el.innerHTML
     el.innerHTML = ""
@@ -151,6 +212,11 @@ function templatizeDynamic(el, content, breadcrumbs) {
     if(!content.dynamic) {content.dynamic = {}}
     content.dynamic[id] = template
 
+    Object.keys(subContent).forEach((key) => {
+        const meta = metaMap[key]
+        delete metaMap[key]
+        subContent[key] = meta
+    })
     // log(content)
     fs.writeFileSync(cPath, JSON.stringify(subContent, null, 4))
     // throw new Error("We shall not Pass!")
@@ -158,11 +224,13 @@ function templatizeDynamic(el, content, breadcrumbs) {
 }
 
 //##############################################################################
-function templatizeStatic(el, content, breadcrumbs) {
+function templatizeStatic(el, content, selector) {
     // log("templatizeStatic")
-    breadcrumbs = extendBreadcrumbs(el, breadcrumbs)
+    // selector = extendselector(el, selector)
+    selector = newselector(el, selector)
+    selector = addIndexInfo(selector, content)
 
-    // log("breadcrumbs: "+breadcrumbs)
+    // log("selector: "+selector)
 
     const nodes = el.childNodes
     // log(nodes)
@@ -186,66 +254,147 @@ function templatizeStatic(el, content, breadcrumbs) {
                 realText = node.textContent.replace(/\s/g, "")    
                 if (realText) { hasText = true }
                 break
+            case Node.COMMENT_NODE: break // Comment node - be silent! :-)
             default:
                 log("This Element was no Text nor Element Node.")
+                log("  > nodeType: "+node.nodeType)
         }
     }
 
     // log("hasText: "+hasText)
     if(hasText) {
+        const key = getUnusedKey()
+        const params = {
+            selector: selector,
+            pugString: "!{templated."+key+"}",
+            pugKey: key,
+            content: el.innerHTML
+        }
         // log("We react on having a text here!")
-        content[breadcrumbs] = el.innerHTML
-        el.innerText = "{{{"+breadcrumbs+"}}}" 
+        addToContent(content, params)
+        el.innerText = "{{{"+selector+"}}}" 
         return
     }
 
     // log("relevantNodes.length: "+relevantNodes.length)
     for(i = 0; i < relevantNodes.length; i++) {
-        templatize(relevantNodes[i], content, breadcrumbs)
+        templatize(relevantNodes[i], content, selector)
     }
     return
 }
 
 //##############################################################################
+function templatizeAttributes(el, content, selector) {
+    selector = newselector(el, selector)
+
+    for(var i = 0; i < textAttributes.length; i++) {
+        var attrName = textAttributes[i]
+        var attr = el.getAttribute(attrName)
+        if(attr) {
+            selector += "["+attrName+"]"
+            var key = getUnusedKey()
+            const params = {
+                selector: selector,
+                pugKey: key,
+                pugString: "templated."+key,
+                content: attr
+            }    
+            addToContent(content, params)
+            
+            const replacor = {
+                pattern: attrName+"='"+attr+"'",
+                newContent: attrName+"={{{"+selector+"}}}"
+            }
+            attributeReplacements.push(replacor)
+        }
+    }
+}
+
+//##############################################################################
 // templatize: top + static recursive call
-function templatize(el, content, breadcrumbs) {
-    // log("templatize "+breadcrumbs)
+function templatize(el, content, selector) {
+    // log("templatize "+selector)
+    templatizeAttributes(el, content, selector)
     if (isEmptyLeave(el) || hasNoText(el)) { return } // no relevant content here
     // log("having relevant content...")
         
-    if (typeof el.getAttribute("dynamic") === "string") { 
-        return templatizeDynamic(el, content, breadcrumbs) 
+    if (typeof el.getAttribute("dynamic") === "string") {
+        return templatizeDynamic(el, content, selector) 
     } else if (typeof el.getAttribute("dynamic-list") === "string") {
-        return templatizeDynamicList(el, content, breadcrumbs)
+        return templatizeDynamicList(el, content, selector)
     } else {
-        return templatizeStatic(el, content, breadcrumbs)
+        return templatizeStatic(el, content, selector)
     }
 }
 
 
 //##############################################################################
-// function breadCrumbsToKey(breadcrumbs) {
-//     var key = breadcrumbs.replaceAll("<", "")
+// function selectorToKey(selector) {
+//     var key = selector.replaceAll("<", "")
 //     key = key.replaceAll("/")
 // }
 
 
 //##############################################################################
-function getDynamicContentPath(id) {return resolve(".", "dissected/"+id+".json")}
-function getUnusedID() {return idBase + idCount++}
+function getDynamicContentPath(id) { return resolve(".", "dissected/"+id+".json") }
+function getUnusedID() { return idBase + idCount++ }
+function getUnusedKey() { return keyBase + keyCount++ }
+
+function addToContent(cObj, params) {
+    if(params.pugString) {
+        cObj[params.selector] = params.pugString
+    } else {
+        cObj[params.selector] = params.content
+    }
+    metaMap[params.selector] = {
+        pugKey: params.pugKey,
+        pugString: params.pugString,
+        content: params.content
+    }
+}
 
 //##############################################################################
-function extendBreadcrumbs(el, breadcrumbs) {
+function extendselector(el, selector) {
     const id = el.id
     const cls = el.className
-    if (id) { breadcrumbs += "#"+id+"#" }
+    if (id) { selector += " > #"+id }
     else {
-        if (cls) { breadcrumbs += "("+cls+")"}
-        else { breadcrumbs += "_"+el.tagName+"_"} 
+        if (cls) { selector += " > ."+cls.split(" ").join(".") }
+        else { selector += " > "+el.tagName.toLowerCase()}
     }
 
-    return breadcrumbs
+    return selector
 }
+
+function newselector(el, selector) {
+    const id = el.id
+    if (id) { return "#"+id }
+    
+    const cls = el.className
+    if (cls) { selector += " > ."+cls.split(" ").join(".") }
+    else { selector += " > "+el.tagName.toLowerCase()}
+
+    return selector
+}
+
+function addIndexInfo(selector, content) {
+    if(typeof content[selector] === "string") {
+        const oldContent = content[selector]
+        content[selector] = 2
+        const newSelectorOld = selector + ":nth-child(1)"
+        content[newSelectorOld] = oldContent
+
+        return selector + ":nth-child(2)" 
+    } 
+    
+    if(typeof content[selector] === "number") {    
+        const num = ++content[selector]
+        return selector + ":nth-child("+num+")"
+    }
+
+    return selector
+}
+
 
 //##############################################################################
 function writeDynamicTemplatesToBody(body, content) {
@@ -269,84 +418,6 @@ function writeDynamicTemplatesToBody(body, content) {
         body.append(templateEl)
     })
 
-}
-
-//##############################################################################
-// checkNode
-// checkNode
-function checkNode(node) {
-    //console.log(node.html());
-    if (hasNoText(node)) {
-        return;
-    }
-
-    if (!node.html()) { //we neither have content nor children
-        return; //so we leave the empty leave
-    }
-
-    var id = node.attr("id");
-
-  //pfusch for excluding the menu
-//   if (id == "menu")
-//     return;
-  //pfusch for excluding nasty Labels
-//   if (node.is("label"))
-//     return;
-
-    //check next
-    var children = node.children();
-    var nonNodeElements = 0;
-
-    for (var i = 0; i < children.length; i++) {
-        if (isSubTagToIgnore(children[i])) {
-            //console.log("!! -  We have a nonNode element here  -  !! ");
-            nonNodeElements++;
-        } else {
-            checkNode($(children[i]));
-        }
-    }
-
-    if (!children.length || (children.length == nonNodeElements)) { //this is a leaf
-        //console.log("!!!   ---   This Node either had no children at all or it only had links as children!");
-
-        if (!id) {
-            id = idBase + idCount++;
-        //   node.attr("id", id);
-        }
-
-        // node.addClass("editable-field");
-        content[id] = node.html();
-        // node.html("{{{content." + id + "}}}");
-        node.html("{{{" + id + "}}}");
-    }
-}
-
-//##############################################################################
-// getElementsWithContent
-function getElementsWithContent(body) {
-  var children = body.children();
-
-//   console.log("we have " + children.length + " children!");
-
-  for (var i = 0; i < children.length; i++) {
-    if (!$(children[i]).is("script")) {
-      checkNode($(children[i]));
-    }
-  }
-
-}
-
-//##############################################################################
-// isSubTagToIgnore
-function isSubTagToIgnore(node) {
-
-  for (var i = 0; i < ignoredSubTags.length; i++) {
-    if ($(node).is(ignoredSubTags[i])) {
-      return true;
-    }
-  }
-
-  return false;
 }
 
 //##############################################################################
