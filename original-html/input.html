@@ -1,740 +1,719 @@
 <!DOCTYPE html>
+<!-- =========================================================
+  PARSER-OPTIMIERUNGEN (Dokumentation)
+  Stand: 2026-01-07
+  Ziel: Exakte Umsetzung der Parser-Regeln
+========================================================= -->
+
+<!--
+1) dynamic-list
+------------------------------------------------------------
+- Der Container <div id="exam-items" dynamic-list> markiert
+  eine Liste gleich strukturierter, dynamischer Elemente.
+- Innerhalb dieses Containers existieren KEINE weiteren
+  "dynamic"-Attribute.
+- Dies gilt für:
+  a) statisch definierte Exam-Items im HTML
+  b) dynamisch erzeugte Items (renderPatientExam()).
+
+Regel:
+dynamic-list ⇒ alle Kind-Elemente sind implizit dynamisch.
+
+
+2) dynamic (Datencontainer)
+------------------------------------------------------------
+- "dynamic" wird ausschließlich auf logische, zusammen-
+  gehörige Datencontainer gesetzt.
+- Keine Markierung einzelner Werte.
+
+Beispiele:
+- <div class="patient-info" dynamic>
+- <div class="kv" dynamic>
+- <div id="exam-count" dynamic>
+
+
+3) Keine dynamic Marker auf statischem Text
+------------------------------------------------------------
+- Statische UI-Texte sind NICHT dynamic und gehören in
+  Language-Files.
+- Beispiele:
+  - Modal-Subtext (#ai-modal-sub)
+  - Labels wie "Tel.:", "E-Mail:"
+
+
+4) Icons
+------------------------------------------------------------
+- Alle Icons sind inline SVG.
+- Keine Font-Icons, keine Emoji-Icons.
+- Vorteile:
+  - Keine Textartefakte in Language-Files
+  - Keine zusätzlichen Font-Files notwendig
+  - Parser kann Icons direkt aus dem HTML extrahieren
+
+
+5) Interface Hooks
+------------------------------------------------------------
+- Alle extern zu implementierenden Aktionen sind als
+  leere Funktionen unter globalThis.interface definiert.
+- Diese dienen als stabile Integrationsschnittstelle
+  und werden extern überschrieben.
+
+============================================================
+STATUS: Parser-konform & exakt nach Vorgabe umgesetzt
+============================================================
+-->
+
 <html lang="de">
 <head>
-  <meta charset="UTF-8" />
-  <title>SustSol – SusDoX Web | Untersuchungen</title>
+  <meta charset="utf-8" />
+  <title>SustSol – SusDoX Web | Patientenportal</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <style>
-    /* ======================================================================
-       RESET & BASIS
-       ====================================================================== */
+    /* =========================================================
+      GLOBAL / RESET
+    ========================================================= */
+    *, *::before, *::after { box-sizing: border-box; }
 
-    *, *::before, *::after {
-      box-sizing: border-box;
+    :root{
+      --bg-body:#F5F7FA;
+      --bg-surface:#ffffff;
+
+      --text-main:#333A45;
+      --text-muted:#425466;
+      --text-subtle:#6B7280;
+
+      --border-subtle:#E5E7EB;
+
+      --accent-blue:#1A5C96;
+      --accent-teal:#20A29D;
+
+      --focus-ring:#1A5C96;
+
+      --radius-lg:16px;
+      --shadow-soft:0 8px 22px rgba(15,23,42,.08);
+
+      --danger-text:#8A1C1C;
+
+      --info-bg:#ECF4FA;
+      --price-bg:rgba(26,92,150,.07);
+      --price-border:rgba(26,92,150,.25);
     }
 
-    /* ======================================================================
-       CI / DESIGN TOKENS (angepasst an bilder-befunde.at Look & Feel)
-       ----------------------------------------------------------------------
-       WICHTIG: Wir ändern NUR Variablen, damit Layout/UX unverändert bleibt.
-       So kann dein Webdesigner später feinjustieren, ohne überall CSS zu suchen.
-
-       LAYOUT-SPECS (Desktop):
-       - Content max-width: 1200px (siehe .page)
-       - Page padding: 40px links/rechts ab 1280px Viewport, sonst 16px
-       - Header padding: 20px 24px (oben/unten, links/rechts)
-       - Header Card Radius: 16px
-       - Card Shadow: soft
-       - Buttons: padding 6px 14px, Pill-Form (radius 999px)
-       - Modal: max-width 600px, padding 20px 24px 16px
-       ====================================================================== */
-
-    :root {
-      /* Hintergrund/Flächen */
-      --bg-body: #F5F7FA;        /* Page background (helles Grau/Blau) */
-      --bg-surface: #ffffff;     /* Karten/Flächen weiß */
-
-      /* Text */
-      --text-main: #333A45;      /* Haupttext (dunkles Grau statt Schwarz) */
-      --text-muted: #425466;     /* sekundärer Text (leicht bläulich) */
-      --text-subtle: #6B7280;    /* Hinweis-/Meta-Text */
-
-      /* Borders */
-      --border-subtle: #E5E7EB;  /* leichte Border */
-
-      /* Akzente (CI) */
-      --accent-purple: #1A5C96;  /* CI-Hauptfarbe (Blau) -> ersetzt bisheriges Lila */
-      --accent-yellow: #20A29D;  /* CI-Sekundärfarbe (Türkis) -> ersetzt bisheriges Gelb-Pünktchen */
-
-      /* Focus (A11y) */
-      --focus-ring: #1A5C96;     /* Fokusfarbe = CI-Blau, gut sichtbar auf hellen Flächen */
-
-      /* Radius / Shadows */
-      --radius-lg: 16px;         /* abgerundete Ecken (Cards/Modal) */
-      --shadow-soft: 0 8px 22px rgba(15, 23, 42, 0.08);
-      --shadow-soft-strong: 0 12px 28px rgba(15, 23, 42, 0.15);
-
-      /* Zusatz-Tokens für KI-Disclaimer (NEU) */
-      --info-bg: #ECF4FA;         /* dezentes Info-Panel */
-      --info-border: #20A29D;     /* Türkis-Akzentstreifen */
-      --price-bg: #E8F3FF;        /* Badge Hintergrund */
-      --price-text: #1A5C96;      /* Badge Text */
-      --danger-text: #8A1C1C;     /* optional für Warnhinweise */
+    body{
+      margin:0;
+      background:var(--bg-body);
+      font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      color:var(--text-main);
+      line-height:1.5;
+      -webkit-font-smoothing:antialiased;
     }
 
-    body {
-      margin: 0;
-      background: var(--bg-body);
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      color: var(--text-main);
-      line-height: 1.5;
-      -webkit-font-smoothing: antialiased;
+    /* --- SVG Icon helpers --- */
+    .icon{
+      display:inline-block;
+      width:20px;
+      height:20px;
+      vertical-align:middle;
+      color:currentColor;
+      flex-shrink:0;
+    }
+    .icon.icon-lg{ width:24px; height:24px; }
+    .icon.icon-xl{ width:28px; height:28px; }
+    .icon-stroke{ fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+    .icon-fill{ fill:currentColor; }
+
+    /* Accessibility: Skip-Link */
+    .skip-link{
+      position:absolute; left:8px; top:8px;
+      padding:8px 12px;
+      background:var(--accent-blue);
+      color:#fff;
+      border-radius:999px;
+      text-decoration:none;
+      font-size:.9rem;
+      transform:translateY(-150%);
+      transition:transform .15s ease;
+      z-index:1000;
+    }
+    .skip-link:focus{ transform:translateY(0); outline:none; }
+
+    .shell{
+      max-width:1200px;
+      margin:0 auto;
+      padding:40px 16px 22px;
+    }
+    @media (min-width:1280px){
+      .shell{ padding-left:40px; padding-right:40px; }
     }
 
-    /* ======================================================================
-       ACCESSIBILITY: SKIP LINK
-       ----------------------------------------------------------------------
-       Maße:
-       - Position: top/left 8px
-       - Padding: 8px 12px
-       - Wird per :focus eingeblendet (translateY)
-       ====================================================================== */
-    .skip-link {
-      position: absolute;
-      left: 8px;
-      top: 8px;
-      padding: 8px 12px;
-      background: var(--accent-purple);
-      color: #ffffff;
-      border-radius: 999px;
-      text-decoration: none;
-      font-size: 0.9rem;
-      transform: translateY(-150%);
-      transition: transform 0.15s ease;
-      z-index: 50;
+    /* =========================================================
+      HEADER / NAVIGATION
+    ========================================================= */
+    header{
+      background:var(--bg-surface);
+      border-radius:var(--radius-lg);
+      padding:20px 24px;
+      display:flex;
+      flex-wrap:wrap;
+      align-items:center;
+      justify-content:space-between;
+      gap:16px;
+      box-shadow:var(--shadow-soft);
+      margin-bottom:18px;
+
+      position: sticky;
+      top: 16px;
+      z-index: 1500;
     }
 
-    .skip-link:focus {
-      transform: translateY(0);
-      outline: none;
-    }
+    .brand{ display:flex; flex-direction:column; gap:2px; }
+    .brand-main{ font-size:1.6rem; font-weight:700; display:flex; align-items:center; gap:8px; }
+    .brand-dot{ width:10px; height:10px; border-radius:999px; background:var(--accent-teal); }
+    .brand-sub{ font-size:.8rem; text-transform:uppercase; letter-spacing:.14em; color:var(--text-subtle); }
 
-    /* ======================================================================
-       PAGE-LAYOUT
-       ----------------------------------------------------------------------
-       Maße:
-       - max-width: 1200px (Standard Desktop Contentbreite)
-       - padding: 40px 16px 60px (oben, seiten, unten)
-       - ab 1280px: padding-left/right 40px (typischer Desktop-Rand)
-       ====================================================================== */
-    .page {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 40px 16px 60px;
+    nav[aria-label="Hauptnavigation"]{
+      display:flex;
+      flex-wrap:wrap;
+      gap:16px;
+      font-size:.95rem;
     }
-
-    @media (min-width: 1280px) {
-      .page {
-        padding-left: 40px;
-        padding-right: 40px;
-      }
+    .nav-link{
+      border:none;
+      background:none;
+      padding:4px 0;
+      cursor:pointer;
+      color:var(--text-muted);
+      border-bottom:2px solid transparent;
+      font:inherit;
     }
-
-    /* ======================================================================
-       HEADER
-       ----------------------------------------------------------------------
-       Maße:
-       - Padding: 20px 24px
-       - Border-radius: 16px
-       - Gap: 16px
-       - Shadow: soft
-       ====================================================================== */
-    header {
-      background: var(--bg-surface);
-      border-radius: var(--radius-lg);
-      padding: 20px 24px;
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      box-shadow: var(--shadow-soft);
-      margin-bottom: 32px;
+    .nav-link:hover{ color:var(--text-main); }
+    .nav-link[aria-current="page"]{
+      color:var(--accent-blue);
+      font-weight:600;
+      border-bottom-color:var(--accent-blue);
     }
-
-    .brand {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-
-    /* Logo/Brand:
-       - font-size: 1.6rem (~25.6px)
-       - font-weight: 700
-    */
-    .brand-main {
-      font-size: 1.6rem;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    /* Brand Dot:
-       - 10x10 px
-       - CI-Sekundärfarbe (Türkis)
-    */
-    .brand-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 999px;
-      background: var(--accent-yellow);
-    }
-
-    .brand-sub {
-      font-size: 0.8rem;
-      text-transform: uppercase;
-      letter-spacing: 0.14em;
-      color: var(--text-subtle);
-    }
-
-    /* Navigation:
-       - gap: 16px
-       - font-size: 0.95rem (~15.2px)
-    */
-    nav[aria-label="Hauptnavigation"] {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 16px;
-      font-size: 0.95rem;
-    }
-
-    .nav-link {
-      border: none;
-      background: none;
-      padding: 4px 0;
-      cursor: pointer;
-      color: var(--text-muted);
-      border-bottom: 2px solid transparent;
-      font: inherit;
-    }
-
-    .nav-link:hover {
-      color: var(--text-main);
-    }
-
-    /* Active Tab:
-       - underline in CI primary blue
-    */
-    .nav-link[aria-current="page"] {
-      color: var(--accent-purple);
-      font-weight: 600;
-      border-bottom-color: var(--accent-purple);
-    }
-
     .nav-link:focus-visible,
-    .logout-btn:focus-visible {
-      outline: 2px solid var(--focus-ring);
-      outline-offset: 2px;
-      border-radius: 4px;
-    }
-
-    .logout-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      border: 1px solid var(--border-subtle);
-      border-radius: 999px;
-      padding: 6px 14px;
-      background: #f9fafb;
-      color: var(--text-muted);
-      cursor: pointer;
-      font-size: 0.9rem;
-    }
-
-    .logout-btn:hover {
-      background: #e5e7eb;
-      color: var(--text-main);
-    }
-
-    /* ======================================================================
-       MAIN
-       ----------------------------------------------------------------------
-       - gap: 24px zwischen Abschnitten
-       ====================================================================== */
-    main {
-      display: flex;
-      flex-direction: column;
-      gap: 24px;
-    }
-
-    .page-title {
-      font-size: 1.4rem;  /* ~22.4px */
-      font-weight: 600;
-    }
-
-    .page-description {
-      font-size: 0.95rem; /* ~15.2px */
-      color: var(--text-subtle);
-      margin-top: -4px;
-    }
-
-    /* ======================================================================
-       PATIENT CARD
-       ----------------------------------------------------------------------
-       Maße:
-       - Padding: 20px 24px
-       - Icon: 48x48
-       - Gap: 16px
-       ====================================================================== */
-    .patient-card {
-      background: var(--bg-surface);
-      border-radius: var(--radius-lg);
-      padding: 20px 24px;
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 16px;
-      box-shadow: var(--shadow-soft);
-    }
-
-    .patient-icon {
-      width: 48px;
-      height: 48px;
-      border-radius: 999px;
-      background: #eef2ff; /* bewusst dezent belassen */
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.4rem;
-      color: var(--accent-purple);
-      flex-shrink: 0;
-    }
-
-    .patient-info {
-      min-width: 0;
-    }
-
-    .patient-name {
-      font-size: 1.1rem; /* ~17.6px */
-      font-weight: 600;
-      margin-bottom: 2px;
-    }
-
-    .patient-meta {
-      font-size: 0.9rem; /* ~14.4px */
-      color: var(--text-subtle);
-    }
-
-    /* ======================================================================
-       UNTERSUCHUNGEN
-       ----------------------------------------------------------------------
-       - exam-list gap: 12px
-       - summary padding: 14px 18px
-       ====================================================================== */
-    .exam-section-header {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
-      align-items: baseline;
-      gap: 8px;
-      margin-top: 8px;
-    }
-
-    .exam-count {
-      font-size: 0.9rem;
-      color: var(--text-subtle);
-    }
-
-    .exam-list {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      margin-top: 4px;
-    }
-
-    .exam-item {
-      background: var(--bg-surface);
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow-soft);
-      overflow: hidden;
-      border: 1px solid var(--border-subtle);
-    }
-
-    .exam-item summary {
-      list-style: none;
-      cursor: pointer;
-      padding: 14px 18px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-    }
-
-    .exam-item summary::-webkit-details-marker {
-      display: none;
-    }
-
-    .exam-header-main {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      min-width: 0;
-    }
-
-    .exam-folder-icon {
-      font-size: 1.5rem;
-      flex-shrink: 0;
-    }
-
-    .exam-text-block {
-      min-width: 0;
-    }
-
-    .exam-title {
-      font-size: 1rem;
-      font-weight: 600;
-      color: var(--text-main);
-      white-space: nowrap;
-      text-overflow: ellipsis;
-      overflow: hidden;
-    }
-
-    .exam-sub {
-      font-size: 0.85rem;
-      color: var(--text-subtle);
-      margin-top: 2px;
-      white-space: nowrap;
-      text-overflow: ellipsis;
-      overflow: hidden;
-    }
-
-    .exam-header-meta {
-      text-align: right;
-      font-size: 0.9rem;
-      color: var(--text-muted);
-      flex-shrink: 0;
-    }
-
-    .exam-date {
-      font-weight: 600;
-      display: block;
-    }
-
-    .exam-type {
-      font-size: 0.8rem;
-    }
-
-    .exam-chevron {
-      margin-left: 8px;
-      font-size: 1rem;
-      color: var(--text-subtle);
-      flex-shrink: 0;
-    }
-
-    details[open] .exam-chevron {
-      transform: rotate(90deg);
-    }
-
-    .exam-item summary:focus-visible {
-      outline: 2px solid var(--focus-ring);
-      outline-offset: 2px;
-    }
-
-    .exam-body {
-      border-top: 1px solid var(--border-subtle);
-      padding: 12px 18px 16px;
-      font-size: 0.9rem;
-      background: #f9fafb;
-    }
-
-    .exam-body-grid {
-      display: grid;
-      grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-      gap: 8px 24px;
-    }
-
-    .exam-body-label {
-      font-weight: 600;
-      color: var(--text-muted);
-      margin-right: 4px;
-    }
-
-    .exam-body-row + .exam-body-row {
-      margin-top: 4px;
-    }
-
-    .exam-actions {
-      margin-top: 12px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-
-    /* Buttons:
-       - btn-primary nutzt CI primary blue (via --accent-purple)
-       - Radius: 999px (Pill)
-       - Padding: 6px 14px (visuelle Höhe ~32-36px je nach Font)
-    */
-    .btn-primary {
-      border-radius: 999px;
-      border: none;
-      padding: 6px 14px;
-      background: var(--accent-purple);
-      color: #ffffff;
-      font-size: 0.9rem;
-      cursor: pointer;
-    }
-
-    .btn-secondary {
-      border-radius: 999px;
-      border: 1px solid var(--border-subtle);
-      padding: 6px 14px;
-      background: #ffffff;
-      color: var(--text-muted);
-      font-size: 0.9rem;
-      cursor: pointer;
-    }
-
-    /* Hover:
-       - Primary slightly darker for feedback (CI-konform)
-    */
-    .btn-primary:hover {
-      background: #144a7a; /* dunkleres CI-Blau */
-    }
-
-    .btn-secondary:hover {
-      background: #f3f4f6;
-    }
-
-    .btn-primary:focus-visible,
-    .btn-secondary:focus-visible {
-      outline: 2px solid var(--focus-ring);
-      outline-offset: 2px;
-    }
-
-    /* ======================================================================
-       FOOTER
-       ====================================================================== */
-    footer {
-      margin-top: 40px;
-      font-size: 0.8rem;
-      text-align: center;
-      color: var(--text-subtle);
-      padding: 12px 0;
-    }
-
-    /* ======================================================================
-       MODAL / KI DIALOG
-       ----------------------------------------------------------------------
-       Maße:
-       - Backdrop: fixed inset 0
-       - Modal: max-width 600px, width 100%
-       - Padding: 20px 24px 16px
-       - Result max-height: 220px
-       ====================================================================== */
-    .modal-backdrop {
-      position: fixed;
-      inset: 0;
-      background: rgba(15, 23, 42, 0.45);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 100;
-    }
-
-    .modal-backdrop[aria-hidden="false"] {
-      display: flex;
-    }
-
-    .modal {
-      max-width: 600px;
-      width: 100%;
-      background: var(--bg-surface);
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow-soft-strong);
-      padding: 20px 24px 16px;
-    }
-
-    .modal-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 12px;
-      margin-bottom: 8px;
-    }
-
-    .modal-title {
-      font-size: 1.1rem;
-      font-weight: 600;
-    }
-
-    .modal-close-btn {
-      border: none;
-      background: none;
-      cursor: pointer;
-      font-size: 1.2rem;
-      color: var(--text-subtle);
-    }
-
-    .modal-close-btn:focus-visible {
-      outline: 2px solid var(--focus-ring);
-      outline-offset: 2px;
-    }
-
-    .modal-text {
-      font-size: 0.9rem;
-      color: var(--text-subtle);
-      margin-bottom: 12px;
-    }
-
-    /* =========================
-       NEU: Disclaimer-Block
-       -------------------------
-       - Hintergrund: --info-bg
-       - linker Akzent: 4px --info-border
-       - padding: 12px 14px
-       - font-size: 0.88rem (~14px)
-       ========================= */
-    .modal-disclaimer {
-      background: var(--info-bg);
-      border-left: 4px solid var(--info-border);
-      padding: 12px 14px;
-      border-radius: 10px;
-      margin: 10px 0 12px 0;
-      font-size: 0.88rem;
-      color: var(--text-main);
-    }
-
-    .modal-disclaimer strong {
-      color: var(--accent-purple);
-    }
-
-    .modal-price-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
-      margin-top: 8px;
-    }
-
-    .price-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 10px;
-      border-radius: 999px;
-      background: var(--price-bg);
-      color: var(--price-text);
-      border: 1px solid rgba(26, 92, 150, 0.25);
-      font-weight: 600;
-      font-size: 0.85rem;
-    }
-
-    /* Checkbox-Row (A11y):
-       - Ziel: User bestätigt Kosten/Anonymisierung
-    */
-    .modal-consent {
-      display: flex;
-      gap: 10px;
-      align-items: flex-start;
-      margin-top: 10px;
-      padding: 10px 12px;
-      border: 1px solid var(--border-subtle);
-      border-radius: 10px;
-      background: #fff;
-    }
-
-    .modal-consent input {
-      margin-top: 3px;
-    }
-
-    .modal-consent label {
-      font-size: 0.88rem;
-      color: var(--text-main);
-    }
-
-    .modal-consent small {
-      display: block;
-      color: var(--text-subtle);
-      margin-top: 2px;
-    }
-
-    .modal-consent-error {
-      display: none;
-      margin-top: 8px;
-      font-size: 0.88rem;
-      color: var(--danger-text);
-    }
-
-    .modal-form-row {
-      margin-bottom: 10px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
-    }
-
-    .modal-label {
-      font-size: 0.9rem;
-      font-weight: 600;
-      color: var(--text-muted);
-    }
-
-    .modal-select,
-    .modal-textarea {
-      width: 100%;
-      font-size: 0.9rem;
-      padding: 6px 8px;
-      border-radius: 8px;
-      border: 1px solid var(--border-subtle);
-      font-family: inherit;
-      resize: vertical;
-    }
-
-    .modal-actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: 8px;
-      margin-top: 8px;
-      margin-bottom: 6px;
-    }
-
-    .modal-result {
-      margin-top: 10px;
-      padding: 10px 12px;
-      border-radius: 8px;
-      background: #f9fafb;
-      border: 1px dashed var(--border-subtle);
-      font-size: 0.9rem;
-      max-height: 220px;
-      overflow: auto;
-    }
-
-    .modal-result-placeholder {
-      color: var(--text-subtle);
-      font-style: italic;
-    }
-
-    .modal-loading {
-      font-size: 0.9rem;
-      color: var(--accent-purple); /* CI-Blau statt Lila */
-      margin-top: 6px;
-    }
-
-    /* Disabled State für Start-Button (NEU) */
-    .btn-primary[disabled] {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-
-    @media (max-width: 720px) {
-      header {
-        align-items: flex-start;
-      }
-      nav[aria-label="Hauptnavigation"] {
-        width: 100%;
-        justify-content: flex-start;
-      }
-      .exam-body-grid {
-        grid-template-columns: 1fr;
-      }
-      .exam-header-meta {
-        text-align: left;
-      }
-      .modal {
-        max-width: 90%;
-      }
-    }
+    .logout-btn:focus-visible{
+      outline:2px solid var(--focus-ring);
+      outline-offset:2px;
+      border-radius:4px;
+    }
+
+    .header-actions{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+
+    #header-search-wrap[hidden]{ display:none !important; }
+
+    .header-search{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      border:1px solid var(--border-subtle);
+      border-radius:999px;
+      background:#fff;
+      padding:6px 12px;
+      min-width:300px;
+    }
+    .header-search input{
+      border:none;
+      outline:none;
+      font:inherit;
+      width:260px;
+      color:var(--text-main);
+      background:transparent;
+    }
+    .header-search input::placeholder{ color:var(--text-subtle); }
+    .header-search:focus-within{
+      outline:2px solid var(--focus-ring);
+      outline-offset:2px;
+    }
+
+    .logout-btn{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      border:1px solid var(--border-subtle);
+      border-radius:999px;
+      padding:6px 14px;
+      background:#f9fafb;
+      color:var(--text-muted);
+      cursor:pointer;
+      font-size:.9rem;
+      white-space:nowrap;
+    }
+    .logout-btn:hover{ background:#e5e7eb; color:var(--text-main); }
+
+    @media (max-width:720px){
+      header{ align-items:flex-start; }
+      nav[aria-label="Hauptnavigation"]{ width:100%; justify-content:flex-start; }
+      .header-search{ width:100%; min-width:unset; }
+      .header-search input{ width:100%; }
+    }
+
+    /* =========================================================
+      PAGES (Single-Page Navigation)
+    ========================================================= */
+    main{ position:relative; }
+    #main:focus, #main:focus-visible { outline:none !important; }
+
+    .page{
+      position:absolute;
+      inset:0;
+      visibility:hidden;
+      pointer-events:none;
+      opacity:0;
+      transition:opacity 140ms ease;
+    }
+    .page.is-active{
+      position:relative;
+      visibility:visible;
+      pointer-events:auto;
+      opacity:1;
+    }
+
+    .page-stage{ min-height: 640px; }
+
+    .page-title{ font-size:1.4rem; font-weight:600; margin:0; }
+    .page-description{ font-size:.95rem; color:var(--text-subtle); margin:6px 0 0 0; }
+
+    /* =========================================================
+      GENERIC CARDS
+    ========================================================= */
+    .card{
+      background:var(--bg-surface);
+      border-radius:var(--radius-lg);
+      padding:20px 24px;
+      box-shadow:var(--shadow-soft);
+      border:1px solid var(--border-subtle);
+    }
+
+    /* Patient-Infokarte */
+    .patient-card{
+      background:var(--bg-surface);
+      border-radius:var(--radius-lg);
+      padding:20px 24px;
+      display:flex;
+      flex-wrap:wrap;
+      align-items:center;
+      gap:16px;
+      box-shadow:var(--shadow-soft);
+    }
+    .patient-icon{
+      width:48px;
+      height:48px;
+      border-radius:999px;
+      background:#eef2ff;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:var(--accent-blue);
+      flex-shrink:0;
+    }
+    .patient-info{ min-width:0; width:auto; }
+    .patient-name{ font-size:1.1rem; font-weight:600; margin:0 0 2px 0; }
+    .patient-meta{ font-size:.9rem; color:var(--text-subtle); margin:0; }
+
+    /* =========================================================
+      UNTERSUCHUNGEN: LISTE / DETAILS
+    ========================================================= */
+    .exam-section-header{
+      display:flex;
+      flex-wrap:wrap;
+      justify-content:space-between;
+      align-items:baseline;
+      gap:8px;
+      margin-top:10px;
+    }
+    .exam-count{ font-size:.9rem; color:var(--text-subtle); }
+
+    .exam-list{
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      margin-top:10px;
+    }
+
+    .exam-item{
+      background:var(--bg-surface);
+      border-radius:var(--radius-lg);
+      box-shadow:var(--shadow-soft);
+      overflow:hidden;
+      border:1px solid var(--border-subtle);
+    }
+
+    .exam-item summary{
+      list-style:none;
+      cursor:pointer;
+      padding:14px 18px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+    }
+    .exam-item summary::-webkit-details-marker{ display:none; }
+    .exam-item summary:hover{ background:#F9FAFB; }
+    .exam-item summary:focus-visible{
+      outline:2px solid var(--focus-ring);
+      outline-offset:2px;
+    }
+
+    .exam-header-main{ display:flex; align-items:center; gap:12px; min-width:0; }
+    .exam-folder-icon{ display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .exam-text-block{ min-width:0; }
+    .exam-title{
+      font-size:1rem;
+      font-weight:600;
+      color:var(--text-main);
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .exam-sub{
+      font-size:.85rem;
+      color:var(--text-subtle);
+      margin-top:2px;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .exam-header-meta{
+      text-align:right;
+      font-size:.9rem;
+      color:var(--text-muted);
+      flex-shrink:0;
+    }
+    .exam-date{ font-weight:600; display:block; }
+    .exam-type{ font-size:.8rem; }
+    .exam-chevron{ margin-left:8px; color:var(--text-subtle); flex-shrink:0; display:flex; align-items:center; }
+    details[open] .exam-chevron{ transform:rotate(90deg); }
+
+    .exam-body{
+      border-top:1px solid var(--border-subtle);
+      padding:12px 18px 16px;
+      font-size:.9rem;
+      background:#f9fafb;
+    }
+    .exam-body-grid{
+      display:grid;
+      grid-template-columns:minmax(0,2fr) minmax(0,1fr);
+      gap:8px 24px;
+    }
+    @media (max-width:720px){
+      .exam-body-grid{ grid-template-columns:1fr; }
+      .exam-header-meta{ text-align:left; }
+    }
+
+    .exam-body-label{ font-weight:600; color:var(--text-muted); margin-right:4px; }
+    .exam-body-row + .exam-body-row{ margin-top:4px; }
+
+    .exam-actions{
+      margin-top:12px;
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      align-items:center;
+    }
+
+    /* =========================================================
+      BUTTONS
+    ========================================================= */
+    .btn-primary, .btn-secondary{
+      transition:background 140ms ease, color 140ms ease, border-color 140ms ease;
+      text-decoration:none;
+      white-space:nowrap;
+    }
+    .btn-primary{
+      border-radius:999px;
+      border:none;
+      padding:6px 14px;
+      background:var(--accent-blue);
+      color:#fff;
+      font-size:.9rem;
+      cursor:pointer;
+    }
+    .btn-primary:hover{ background:#144a7a; color:#fff; }
+    .btn-secondary{
+      border-radius:999px;
+      border:1px solid var(--border-subtle);
+      padding:6px 14px;
+      background:#fff;
+      color:var(--text-muted);
+      font-size:.9rem;
+      cursor:pointer;
+    }
+    .btn-secondary:hover{
+      background:#f3f4f6;
+      color:var(--text-main);
+      border-color:#D1D5DB;
+    }
+    .btn-primary:focus-visible, .btn-secondary:focus-visible{
+      outline:2px solid var(--focus-ring);
+      outline-offset:2px;
+    }
+    .btn-primary[disabled], .btn-secondary[disabled]{ opacity:.6; cursor:not-allowed; }
+
+    /* =========================================================
+      FORMS / INPUTS
+    ========================================================= */
+    .own-grid{
+      display:grid;
+      grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+      gap:10px 24px;
+    }
+    @media (max-width:720px){
+      .own-grid{ grid-template-columns:1fr; }
+    }
+
+    .form-row{ margin-bottom:10px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; width:100%; }
+    .form-label{ font-size:.9rem; font-weight:600; color:var(--text-muted); width:100%; }
+
+    .input{
+      width:100%;
+      border:1px solid var(--border-subtle);
+      border-radius:10px;
+      padding:10px 12px;
+      font-size:.95rem;
+      background:#fff;
+      color:var(--text-main);
+      font-family:inherit;
+    }
+    .input:focus-visible{ outline:2px solid var(--focus-ring); outline-offset:2px; }
+
+    .select, .textarea{
+      width:100%;
+      font-size:.9rem;
+      padding:8px 10px;
+      border-radius:8px;
+      border:1px solid var(--border-subtle);
+      font-family:inherit;
+      background:#fff;
+    }
+    .textarea{ resize:vertical; }
+
+    .status{
+      margin-top:10px;
+      font-size:.88rem;
+      color:var(--text-subtle);
+    }
+    .status.is-success{ color:var(--accent-teal); }
+    .status.is-error{ color:var(--danger-text); }
+
+    #account-edit-card[hidden]{ display:none !important; }
+
+    .page-footer{
+      margin-top:18px;
+      padding:14px 0;
+      font-size:.8rem;
+      text-align:center;
+      color:var(--text-subtle);
+    }
+
+    /* =========================================================
+      ACCOUNT
+    ========================================================= */
+    .account-summary{
+      background:var(--bg-surface);
+      border:1px solid var(--border-subtle);
+      border-radius:16px;
+      padding:16px 20px;
+      box-shadow:var(--shadow-soft);
+      margin:12px 0 16px 0;
+    }
+    .summary-grid{
+      display:grid;
+      grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));
+      gap:16px;
+    }
+    .muted{ color:var(--text-subtle); font-size:.9rem; }
+
+    .kv{
+      display:grid;
+      grid-template-columns:140px 1fr;
+      gap:8px 14px;
+      margin-top:12px;
+    }
+    .kv .k{ color:var(--text-muted); font-weight:600; font-size:.9rem; }
+    .kv .v{ color:var(--text-main); font-size:.95rem; }
+
+/* =========================================================
+      KI MODAL
+    ========================================================= */
+    .modal-overlay[hidden]{ display:none !important; }
+    .modal-overlay{
+      position:fixed;
+      inset:0;
+      background:rgba(15,23,42,.55);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:16px;
+      z-index:2000;
+    }
+    .modal{
+      width:min(760px, 100%);
+      background:var(--bg-surface);
+      border-radius:18px;
+      box-shadow:0 18px 48px rgba(15,23,42,.22);
+      border:1px solid var(--border-subtle);
+      overflow:hidden;
+    }
+
+    .modal-header{
+      padding:18px 20px 10px;
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:12px;
+      background:#fff;
+    }
+    .modal-title{
+      font-size:1.15rem;
+      font-weight:700;
+      margin:0;
+      color:var(--text-main);
+    }
+    .modal-close-icon{
+      border:none;
+      background:transparent;
+      cursor:pointer;
+      line-height:1;
+      color:var(--text-subtle);
+      padding:6px 8px;
+      border-radius:10px;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .modal-close-icon:hover{ background:#f3f4f6; color:var(--text-main); }
+    .modal-close-icon:focus-visible{
+      outline:2px solid var(--focus-ring);
+      outline-offset:2px;
+    }
+
+    .modal-body{ padding:10px 20px 18px; background:#fff; }
+
+    .modal-text{
+      margin:0 0 12px 0;
+      font-size:.95rem;
+      color:var(--text-subtle);
+    }
+
+    .ai-disclaimer{
+      background:var(--info-bg);
+      border:1px solid rgba(32,162,157,.30);
+      border-left:4px solid var(--accent-teal);
+      border-radius:14px;
+      padding:12px 14px;
+      margin:10px 0 12px 0;
+      color:var(--text-muted);
+      font-size:.92rem;
+    }
+    .ai-disclaimer strong{ color:var(--accent-blue); }
+    .ai-price-badge{
+      display:inline-flex;
+      align-items:center;
+      border-radius:999px;
+      padding:6px 10px;
+      border:1px solid var(--price-border);
+      background:var(--price-bg);
+      color:var(--accent-blue);
+      font-weight:700;
+      font-size:.9rem;
+      margin:10px 0 6px;
+    }
+
+    .ai-consent-box{
+      border:1px solid var(--border-subtle);
+      border-radius:12px;
+      padding:12px 12px;
+      display:flex;
+      gap:10px;
+      align-items:flex-start;
+      margin:8px 0 10px;
+      background:#fff;
+    }
+    .ai-consent-box input{ margin-top:3px; }
+    .ai-consent-box label{
+      font-size:.92rem;
+      color:var(--text-main);
+    }
+    .ai-consent-box small{
+      display:block;
+      margin-top:4px;
+      color:var(--text-subtle);
+    }
+    .ai-consent-error{
+      display:none;
+      margin:6px 0 0 0;
+      color:var(--danger-text);
+      font-size:.9rem;
+    }
+
+    .ai-form-row{ margin-top:10px; }
+    .ai-label{
+      font-size:.95rem;
+      font-weight:600;
+      color:var(--text-muted);
+      display:block;
+      margin-bottom:6px;
+    }
+    .modal-select, .modal-textarea{
+      width:100%;
+      border:1px solid var(--border-subtle);
+      border-radius:10px;
+      padding:10px 12px;
+      font:inherit;
+      background:#fff;
+      color:var(--text-main);
+    }
+    .modal-textarea{ min-height:92px; resize:vertical; }
+    .modal-select:focus-visible, .modal-textarea:focus-visible{
+      outline:2px solid var(--focus-ring);
+      outline-offset:2px;
+    }
+
+    .modal-actions{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      margin-top:12px;
+      align-items:center;
+      justify-content:flex-end;
+    }
+
+    .ai-result{
+      margin-top:12px;
+      border:1px dashed var(--border-subtle);
+      border-radius:12px;
+      background:#f9fafb;
+      padding:12px 14px;
+      font-size:.95rem;
+      color:var(--text-main);
+      white-space:pre-wrap;
+    }
+    .ai-result-placeholder{
+      color:var(--text-subtle);
+      font-style:italic;
+    }
+    .modal-status{
+      margin-top:8px;
+      font-size:.9rem;
+      color:var(--text-subtle);
+    }
+    .modal-status.is-success{ color:var(--accent-teal); }
+    .modal-status.is-error{ color:var(--danger-text); }
   </style>
 </head>
 
 <body>
-  <!-- Skip-Link für Screenreader & Tastatur -->
-  <a href="#main" class="skip-link">Zum Hauptinhalt springen</a>
+  <a class="skip-link" href="#main">Zum Hauptinhalt springen</a>
 
-  <div class="page">
+  <div class="shell">
     <header>
       <div class="brand">
         <div class="brand-main">
@@ -745,531 +724,1181 @@
       </div>
 
       <nav aria-label="Hauptnavigation">
-        <button class="nav-link" aria-current="page">Untersuchungen</button>
-        <button class="nav-link">Mein Account</button>
-        <button class="nav-link">Support</button>
+        <button class="nav-link" data-page="exams" type="button" aria-current="page">Untersuchungen</button>
+        <button class="nav-link" data-page="account" type="button">Mein Account</button>
+        <button class="nav-link" data-page="support" type="button">Support</button>
       </nav>
 
-      <button class="logout-btn" type="button" aria-label="Abmelden">
-        <span>Logout</span>
-        <span aria-hidden="true">⎋</span>
-      </button>
+      <div class="header-actions" aria-label="Aktionen">
+        <div id="header-search-wrap">
+          <div class="header-search" role="search" aria-label="Untersuchungen durchsuchen">
+            <!-- SVG: Search -->
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path class="icon-stroke" d="M21 21l-4.35-4.35m1.35-5.15a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+            </svg>
+            <input id="exam-search" type="search" placeholder="Untersuchungen suchen … (z. B. MRT, 2024, Rechberger)" />
+          </div>
+        </div>
+
+        <button aria-label="Abmelden" class="logout-btn" type="button" id="logout-btn">
+          <span>Logout</span>
+          <!-- SVG: Logout -->
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path class="icon-stroke" d="M10 16l-4-4 4-4"></path>
+            <path class="icon-stroke" d="M6 12h9"></path>
+            <path class="icon-stroke" d="M14 7a4 4 0 014 4v2a4 4 0 01-4 4"></path>
+          </svg>
+        </button>
+      </div>
     </header>
 
-    <main id="main" tabindex="-1">
-      <section aria-labelledby="page-title">
-        <h1 id="page-title" class="page-title">Meine Untersuchungen</h1>
-        <p class="page-description">
-          Hier finden Sie eine Übersicht Ihrer bisherigen Untersuchungen. Sie können die Ordner aufklappen,
-          um Details anzuzeigen, Befunde zu öffnen oder eine KI-gestützte Erklärung/Übersetzung zu erhalten.
-        </p>
-      </section>
+    <div class="page-stage">
+      <main id="main" tabindex="-1">
 
-      <!-- Patientendaten -->
-      <section class="patient-card dynamic" aria-label="Patientendaten">
-        <div class="patient-icon" aria-hidden="true">👤</div>
-        <div class="patient-info">
-          <div class="patient-name">M.A. Lackner Peregrin</div>
-          <div class="patient-meta">
-            SV-Nummer: 1322 · Geboren am 07.04.1979
-          </div>
-        </div>
-      </section>
+        <!-- =========================================================
+          PAGE: UNTERSUCHUNGEN
+        ========================================================== -->
+        <section class="page is-active" data-page="exams" aria-labelledby="page-title">
+          <section aria-labelledby="page-title">
+            <h1 class="page-title" id="page-title">Meine Untersuchungen</h1>
+            <p class="page-description">Übersicht Ihrer bisherigen Untersuchungen.</p>
+          </section>
 
-      <!-- Untersuchungen-Liste -->
-      <section aria-label="Liste der Untersuchungen">
-        <div class="exam-section-header">
-          <h2 class="page-title" style="font-size: 1.1rem;">Untersuchungsübersicht</h2>
-          <div class="exam-count dynamic" aria-live="polite">
-            3 Einträge gefunden
-          </div>
-        </div>
+          <section aria-label="Patientendaten" class="patient-card" style="margin-top:14px;">
+            <div class="patient-icon" aria-hidden="true">
+              <!-- SVG: User -->
+              <svg class="icon icon-lg" viewBox="0 0 24 24">
+                <path class="icon-stroke" d="M20 21a8 8 0 10-16 0"></path>
+                <path class="icon-stroke" d="M12 12a4 4 0 100-8 4 4 0 000 8z"></path>
+              </svg>
+            </div>
+            <div class="patient-info" dynamic>
+              <p class="patient-name">M.A. Lackner Peregrin</p>
+              <p class="patient-meta">SV-Nummer: 1322 · Geboren am 07.04.1979</p>
+            </div>
+          </section>
 
-        <div class="exam-list dynamic-list">
-          <!-- Beispielhafte Einträge mit fiktiver examId für KI-Aufrufe -->
-          <details class="exam-item dynamic-list-item">
-            <summary>
-              <div class="exam-header-main">
-                <div class="exam-folder-icon" aria-hidden="true">📂</div>
-                <div class="exam-text-block">
-                  <div class="exam-title">LG2, SOSD, SOON</div>
-                  <div class="exam-sub">Dr. Josef Rechberger · Radiologie</div>
+          <section aria-label="Liste der Untersuchungen" style="margin-top:10px;">
+            <div class="exam-section-header">
+              <h2 class="page-title" style="font-size:1.1rem;">Untersuchungsübersicht</h2>
+              <div class="exam-count" id="exam-count" aria-live="polite" dynamic>3 Einträge gefunden</div>
+            </div>
+
+            <div class="exam-list" id="exam-list">
+              <!-- WICHTIG: Create-Item NICHT in dynamic-list, weil andere Struktur als normale Items -->
+
+              <!-- Eigene Untersuchung hinzufügen -->
+              <details class="exam-item exam-item--create" id="own-exam-create">
+                <summary>
+                  <div class="exam-header-main">
+                    <div class="exam-folder-icon" aria-hidden="true">
+                      <!-- SVG: Document -->
+                      <svg class="icon icon-lg" viewBox="0 0 24 24">
+                        <path class="icon-stroke" d="M7 3h7l3 3v15H7z"></path>
+                        <path class="icon-stroke" d="M14 3v4h4"></path>
+                        <path class="icon-stroke" d="M9 12h6M9 16h6"></path>
+                      </svg>
+                    </div>
+                    <div class="exam-text-block">
+                      <div class="exam-title">Eigene Untersuchung hinzufügen</div>
+                      <div class="exam-sub">Eigenen Befund (PDF) + Bilder (JPG/PNG) hochladen.</div>
+                    </div>
+                  </div>
+                  <div class="exam-header-meta">
+                    <span class="exam-date">—</span>
+                    <span class="exam-type">Patienten-Upload</span>
+                  </div>
+                  <div class="exam-chevron" aria-hidden="true">
+                    <!-- SVG: Chevron -->
+                    <svg class="icon" viewBox="0 0 24 24">
+                      <path class="icon-stroke" d="M9 18l6-6-6-6"></path>
+                    </svg>
+                  </div>
+                </summary>
+
+                <div class="exam-body">
+                  <form id="own-exam-form">
+                    <div class="own-grid">
+                      <div class="form-row">
+                        <label class="form-label" for="own-title">Titel / Leistung *</label>
+                        <input class="input" id="own-title" name="title" required placeholder="z. B. MRT Knie rechts" />
+                      </div>
+
+                      <div class="form-row">
+                        <label class="form-label" for="own-date">Datum *</label>
+                        <input class="input" id="own-date" name="date" type="date" required />
+                      </div>
+
+                      <div class="form-row">
+                        <label class="form-label" for="own-type">Untersuchungsart *</label>
+                        <select class="select" id="own-type" name="type" required>
+                          <option value="" selected disabled>Bitte wählen …</option>
+                          <option>Röntgen</option>
+                          <option>CT</option>
+                          <option>MRT</option>
+                          <option>Ultraschall</option>
+                          <option>Labor</option>
+                          <option>Sonstiges</option>
+                        </select>
+                      </div>
+
+                      <div class="form-row">
+                        <label class="form-label" for="own-provider">Einrichtung / Behandler</label>
+                        <input class="input" id="own-provider" name="provider" placeholder="z. B. Radiologie XY / Dr. Mustermann" />
+                      </div>
+
+                      <div class="form-row">
+                        <label class="form-label" for="own-location">Ort</label>
+                        <input class="input" id="own-location" name="location" placeholder="z. B. Graz" />
+                      </div>
+
+                      <div class="form-row">
+                        <label class="form-label" for="own-notes">Hinweis (optional)</label>
+                        <textarea class="textarea" id="own-notes" name="notes" rows="2" placeholder="z. B. Zweitmeinung, Voruntersuchung …"></textarea>
+                      </div>
+
+                      <div class="form-row">
+                        <label class="form-label" for="own-report">Befund (PDF) *</label>
+                        <input class="input" id="own-report" name="report" type="file" accept=".pdf,application/pdf" required />
+                      </div>
+
+                      <div class="form-row">
+                        <label class="form-label" for="own-images">Bilder (JPG/PNG) *</label>
+                        <input class="input" id="own-images" name="images" type="file" accept="image/jpeg,image/png" multiple required />
+                      </div>
+                    </div>
+
+                    <div class="exam-actions">
+                      <button class="btn-primary" type="submit" id="own-submit-btn">Untersuchung speichern</button>
+                      <button class="btn-secondary" type="button" id="own-reset-btn">Zurücksetzen</button>
+                    </div>
+
+                    <div class="status" id="own-form-status" aria-live="polite"></div>
+                  </form>
                 </div>
-              </div>
-              <div class="exam-header-meta">
-                <span class="exam-date">25.07.2024</span>
-                <span class="exam-type">Röntgen / MRT</span>
-              </div>
-              <div class="exam-chevron" aria-hidden="true">▶</div>
-            </summary>
-            <div class="exam-body">
-              <div class="exam-body-grid">
-                <div>
-                  <div class="exam-body-row">
-                    <span class="exam-body-label">Behandler:</span>
-                    <span>Dr. Josef Rechberger</span>
-                  </div>
-                  <div class="exam-body-row">
-                    <span class="exam-body-label">Institut:</span>
-                    <span>Radiologie Rechberger</span>
-                  </div>
-                  <div class="exam-body-row">
-                    <span class="exam-body-label">Leistung:</span>
-                    <span>LG2, SOSD, SOON</span>
-                  </div>
-                </div>
-                <div>
-                  <div class="exam-body-row">
-                    <span class="exam-body-label">Datum:</span>
-                    <span>25.07.2024</span>
-                  </div>
-                  <div class="exam-body-row">
-                    <span class="exam-body-label">Status:</span>
-                    <span>Befund liegt vor</span>
-                  </div>
-                </div>
-              </div>
-              <div class="exam-actions">
-                <button class="btn-primary" type="button">
-                  Befund öffnen (PDF)
-                </button>
-                <button class="btn-secondary" type="button">
-                  Bilder anzeigen
-                </button>
+              </details>
 
-                <!-- NEU: KI-Funktionen -->
-                <button
-                  class="btn-secondary js-ki-explain"
-                  type="button"
-                >
-                  Befund einfach erklären (KI)
-                </button>
-                <button
-                  class="btn-secondary js-ki-translate"
-                  type="button"
-                >
-                  Befund übersetzen (KI)
-                </button>
+              <!-- (2) dynamic-list: ab hier nur echte, gleich strukturierte Untersuchungs-Items -->
+              <div id="exam-items" dynamic-list>
+                <!-- Untersuchung 1 -->
+                <details class="exam-item" data-exam-id="exam-1">
+                  <summary>
+                    <div class="exam-header-main">
+                      <div class="exam-folder-icon" aria-hidden="true">
+                        <!-- SVG: Folder -->
+                        <svg class="icon icon-lg" viewBox="0 0 24 24">
+                          <path class="icon-stroke" d="M3 7h7l2 2h9v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                        </svg>
+                      </div>
+                      <div class="exam-text-block">
+                        <div class="exam-title">LG2, SOSD, SOON</div>
+                        <div class="exam-sub">Dr. Josef Rechberger · Radiologie</div>
+                      </div>
+                    </div>
+                    <div class="exam-header-meta">
+                      <span class="exam-date">25.07.2024</span>
+                      <span class="exam-type">Röntgen / MRT</span>
+                    </div>
+                    <div class="exam-chevron" aria-hidden="true">
+                      <svg class="icon" viewBox="0 0 24 24">
+                        <path class="icon-stroke" d="M9 18l6-6-6-6"></path>
+                      </svg>
+                    </div>
+                  </summary>
+
+                  <div class="exam-body">
+                    <div class="exam-body-grid">
+                      <div>
+                        <div class="exam-body-row"><span class="exam-body-label">Behandler:</span><span>Dr. Josef Rechberger</span></div>
+                        <div class="exam-body-row"><span class="exam-body-label">Institut:</span><span>Radiologie Rechberger</span></div>
+                        <div class="exam-body-row"><span class="exam-body-label">Leistung:</span><span>LG2, SOSD, SOON</span></div>
+                      </div>
+                      <div>
+                        <div class="exam-body-row"><span class="exam-body-label">Datum:</span><span>25.07.2024</span></div>
+                        <div class="exam-body-row"><span class="exam-body-label">Status:</span><span>Befund liegt vor</span></div>
+                      </div>
+                    </div>
+
+                    <div class="exam-actions">
+                      <button class="btn-primary js-open-report" data-exam-id="exam-1" type="button">Befund öffnen (PDF)</button>
+                      <button class="btn-secondary js-show-images" data-exam-id="exam-1" type="button">Bilder anzeigen</button>
+
+                      <button class="btn-secondary js-ki-explain" data-exam-id="exam-1" type="button">Befund einfach erklären (KI)</button>
+                      <button class="btn-secondary js-ki-translate" data-exam-id="exam-1" type="button">Befund übersetzen (KI)</button>
+
+                      <button class="btn-secondary js-upload-btn" data-exam-id="exam-1" type="button">Dokument hochladen</button>
+                      <input class="js-upload-input" data-exam-id="exam-1" type="file" accept=".pdf,image/jpeg,image/png" multiple hidden />
+                    </div>
+
+                    <div class="status" aria-live="polite"></div>
+                  </div>
+                </details>
+
+                <!-- Untersuchung 2 -->
+                <details class="exam-item" data-exam-id="exam-2">
+                  <summary>
+                    <div class="exam-header-main">
+                      <div class="exam-folder-icon" aria-hidden="true">
+                        <svg class="icon icon-lg" viewBox="0 0 24 24">
+                          <path class="icon-stroke" d="M3 7h7l2 2h9v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                        </svg>
+                      </div>
+                      <div class="exam-text-block">
+                        <div class="exam-title">MRSCHUR 2014 F</div>
+                        <div class="exam-sub">MR-CT Diagnose Institut Klagenfurt</div>
+                      </div>
+                    </div>
+                    <div class="exam-header-meta">
+                      <span class="exam-date">22.10.2020</span>
+                      <span class="exam-type">MRT</span>
+                    </div>
+                    <div class="exam-chevron" aria-hidden="true">
+                      <svg class="icon" viewBox="0 0 24 24">
+                        <path class="icon-stroke" d="M9 18l6-6-6-6"></path>
+                      </svg>
+                    </div>
+                  </summary>
+
+                  <div class="exam-body">
+                    <div class="exam-body-grid">
+                      <div>
+                        <div class="exam-body-row"><span class="exam-body-label">Behandler:</span><span>MR-CT Diagnose Institut</span></div>
+                        <div class="exam-body-row"><span class="exam-body-label">Ort:</span><span>Klagenfurt</span></div>
+                        <div class="exam-body-row"><span class="exam-body-label">Leistung:</span><span>MRSCHUR 2014 F</span></div>
+                      </div>
+                      <div>
+                        <div class="exam-body-row"><span class="exam-body-label">Datum:</span><span>22.10.2020</span></div>
+                        <div class="exam-body-row"><span class="exam-body-label">Status:</span><span>Befund liegt vor</span></div>
+                      </div>
+                    </div>
+
+                    <div class="exam-actions">
+                      <button class="btn-primary js-open-report" data-exam-id="exam-2" type="button">Befund öffnen (PDF)</button>
+                      <button class="btn-secondary js-show-images" data-exam-id="exam-2" type="button">Bilder anzeigen</button>
+
+                      <button class="btn-secondary js-ki-explain" data-exam-id="exam-2" type="button">Befund einfach erklären (KI)</button>
+                      <button class="btn-secondary js-ki-translate" data-exam-id="exam-2" type="button">Befund übersetzen (KI)</button>
+
+                      <button class="btn-secondary js-upload-btn" data-exam-id="exam-2" type="button">Dokument hochladen</button>
+                      <input class="js-upload-input" data-exam-id="exam-2" type="file" accept=".pdf,image/jpeg,image/png" multiple hidden />
+                    </div>
+
+                    <div class="status" aria-live="polite"></div>
+                  </div>
+                </details>
+
+                <!-- Untersuchung 3 -->
+                <details class="exam-item" data-exam-id="exam-3">
+                  <summary>
+                    <div class="exam-header-main">
+                      <div class="exam-folder-icon" aria-hidden="true">
+                        <svg class="icon icon-lg" viewBox="0 0 24 24">
+                          <path class="icon-stroke" d="M3 7h7l2 2h9v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                        </svg>
+                      </div>
+                      <div class="exam-text-block">
+                        <div class="exam-title">LG2</div>
+                        <div class="exam-sub">Dr. Salcher & Dr. Grabner-Frankl</div>
+                      </div>
+                    </div>
+                    <div class="exam-header-meta">
+                      <span class="exam-date">29.03.2018</span>
+                      <span class="exam-type">Labor</span>
+                    </div>
+                    <div class="exam-chevron" aria-hidden="true">
+                      <svg class="icon" viewBox="0 0 24 24">
+                        <path class="icon-stroke" d="M9 18l6-6-6-6"></path>
+                      </svg>
+                    </div>
+                  </summary>
+
+                  <div class="exam-body">
+                    <div class="exam-body-grid">
+                      <div>
+                        <div class="exam-body-row"><span class="exam-body-label">Behandler:</span><span>Dr. Salcher & Dr. Grabner-Frankl</span></div>
+                        <div class="exam-body-row"><span class="exam-body-label">Leistung:</span><span>LG2</span></div>
+                      </div>
+                      <div>
+                        <div class="exam-body-row"><span class="exam-body-label">Datum:</span><span>29.03.2018</span></div>
+                        <div class="exam-body-row"><span class="exam-body-label">Status:</span><span>Archiviert</span></div>
+                      </div>
+                    </div>
+
+                    <div class="exam-actions">
+                      <button class="btn-secondary js-open-report" data-exam-id="exam-3" type="button">Befund öffnen (PDF)</button>
+
+                      <button class="btn-secondary js-ki-explain" data-exam-id="exam-3" type="button">Befund einfach erklären (KI)</button>
+                      <button class="btn-secondary js-ki-translate" data-exam-id="exam-3" type="button">Befund übersetzen (KI)</button>
+
+                      <button class="btn-secondary js-upload-btn" data-exam-id="exam-3" type="button">Dokument hochladen</button>
+                      <input class="js-upload-input" data-exam-id="exam-3" type="file" accept=".pdf,image/jpeg,image/png" multiple hidden />
+                    </div>
+
+                    <div class="status" aria-live="polite"></div>
+                  </div>
+                </details>
               </div>
             </div>
-          </details>
+          </section>
 
-          <details class="exam-item dynamic-list-item">
-            <summary>
-              <div class="exam-header-main">
-                <div class="exam-folder-icon" aria-hidden="true">📂</div>
-                <div class="exam-text-block">
-                  <div class="exam-title">MRSCHUR 2014 F</div>
-                  <div class="exam-sub">MR-CT Diagnose Institut Klagenfurt</div>
-                </div>
-              </div>
-              <div class="exam-header-meta">
-                <span class="exam-date">22.10.2020</span>
-                <span class="exam-type">MRT</span>
-              </div>
-              <div class="exam-chevron" aria-hidden="true">▶</div>
-            </summary>
-            <div class="exam-body">
-              <div class="exam-body-grid">
-                <div>
-                  <div class="exam-body-row">
-                    <span class="exam-body-label">Behandler:</span>
-                    <span>MR-CT Diagnose Institut</span>
-                  </div>
-                  <div class="exam-body-row">
-                    <span class="exam-body-label">Ort:</span>
-                    <span>Klagenfurt</span>
-                  </div>
-                  <div class="exam-body-row">
-                    <span class="exam-body-label">Leistung:</span>
-                    <span>MRSCHUR 2014 F</span>
-                  </div>
-                </div>
-                <div>
-                  <div class="exam-body-row">
-                    <span class="exam-body-label">Datum:</span>
-                    <span>22.10.2020</span>
-                  </div>
-                  <div class="exam-body-row">
-                    <span class="exam-body-label">Status:</span>
-                    <span>Befund liegt vor</span>
-                  </div>
-                </div>
-              </div>
-              <div class="exam-actions">
-                <button class="btn-primary" type="button">
-                  Befund öffnen (PDF)
-                </button>
-                <button class="btn-secondary" type="button">
-                  Bilder anzeigen
-                </button>
+          <div class="page-footer">© SustSol GmbH · Graz · SusDoX Web Patientenportal</div>
+        </section>
 
-                <!-- NEU: KI-Funktionen -->
-                <button
-                  class="btn-secondary js-ki-explain"
-                  type="button"
-                >
-                  Befund einfach erklären (KI)
-                </button>
-                <button
-                  class="btn-secondary js-ki-translate"
-                  type="button"
-                >
-                  Befund übersetzen (KI)
-                </button>
+        <!-- =========================================================
+          PAGE: MEIN ACCOUNT
+        ========================================================== -->
+        <section class="page" data-page="account" aria-labelledby="account-title">
+          <section aria-labelledby="account-title">
+            <h1 class="page-title" id="account-title">Mein Account</h1>
+            <p class="page-description">Persönliche Daten anzeigen und bei Bedarf bearbeiten.</p>
+          </section>
+
+          <section class="account-summary" aria-label="Profilübersicht">
+            <div class="summary-grid" dynamic>
+              <div>
+                <strong id="summary-name">M.A. Peregrin Lackner</strong>
+                <div class="muted">SV-Nr.: <span id="summary-svnr">1322 070479</span></div>
+              </div>
+              <div id="summary-address">Martin Rom Straße 17<br>9300 St. Veit</div>
+              <div>
+                Tel.: <span id="summary-phone">0660 40 30 30 2</span><br>
+                E-Mail: <span id="summary-email">—</span>
               </div>
             </div>
-          </details>
+          </section>
 
-          <details class="exam-item">
-            <summary>
-              <div class="exam-header-main">
-                <div class="exam-folder-icon" aria-hidden="true">📂</div>
-                <div class="exam-text-block">
-                  <div class="exam-title">LG2</div>
-                  <div class="exam-sub">Dr. Salcher &amp; Dr. Grabner-Frankl</div>
-                </div>
-              </div>
-              <div class="exam-header-meta">
-                <span class="exam-date">29.03.2018</span>
-                <span class="exam-type">Labor</span>
-              </div>
-              <div class="exam-chevron" aria-hidden="true">▶</div>
-            </summary>
-            <div class="exam-body">
-              <div class="exam-body-grid">
-                <div>
-                  <div class="exam-body-row">
-                    <span class="exam-body-label">Behandler:</span>
-                    <span>Dr. Salcher &amp; Dr. Grabner-Frankl</span>
-                  </div>
-                  <div class="exam-body-row">
-                    <span class="exam-body-label">Leistung:</span>
-                    <span>LG2</span>
-                  </div>
-                </div>
-                <div>
-                  <div class="exam-body-row">
-                    <span class="exam-body-label">Datum:</span>
-                    <span>29.03.2018</span>
-                  </div>
-                  <div class="exam-body-row">
-                    <span class="exam-body-label">Status:</span>
-                    <span>Archiviert</span>
-                  </div>
-                </div>
-              </div>
-              <div class="exam-actions">
-                <button class="btn-secondary" type="button">
-                  Befund öffnen (PDF)
-                </button>
+          <section class="patient-card" aria-label="Meine Daten (Anzeige)" style="margin-top:10px;">
+            <div class="patient-icon" aria-hidden="true">
+              <!-- SVG: ID Card -->
+              <svg class="icon icon-lg" viewBox="0 0 24 24">
+                <path class="icon-stroke" d="M4 7h16v10H4z"></path>
+                <path class="icon-stroke" d="M8 11a2 2 0 104 0 2 2 0 00-4 0z"></path>
+                <path class="icon-stroke" d="M14 11h4M14 15h4M8 15h3"></path>
+              </svg>
+            </div>
+            <div class="patient-info" style="width:100%;">
+              <p class="patient-name">Persönliche Daten</p>
+              <p class="patient-meta">Ihre aktuellen Daten (Anzeige).</p>
 
-                <!-- NEU: KI-Funktionen -->
-                <button
-                  class="btn-secondary js-ki-explain"
-                  type="button"
-                >
-                  Befund einfach erklären (KI)
-                </button>
-                <button
-                  class="btn-secondary js-ki-translate"
-                  type="button"
-                >
-                  Befund übersetzen (KI)
-                </button>
+              <!-- Optimiert: dynamic auf Parent, keine dynamic Marker auf Child-Values -->
+              <div class="kv" dynamic>
+                <div class="k">Titel</div><div class="v">M.A.</div>
+                <div class="k">Vorname</div><div class="v">Peregrin</div>
+                <div class="k">Nachname</div><div class="v">Lackner</div>
+                <div class="k">Adresse</div><div class="v">Martin Rom Straße 17</div>
+                <div class="k">PLZ / Ort</div><div class="v">9300 St. Veit</div>
+                <div class="k">Telefon</div><div class="v">0660 40 30 30 2</div>
+                <div class="k">E-Mail</div><div class="v">—</div>
+                <div class="k">SV-Nummer</div><div class="v">1322 070479</div>
+                <div class="k">PIN-Code</div><div class="v">******</div>
+              </div>
+
+              <div class="exam-actions" style="margin-top:14px;">
+                <button class="btn-primary" type="button" id="account-edit-btn">Ändern</button>
               </div>
             </div>
-          </details>
-        </div>
-      </section>
-    </main>
+          </section>
 
-    <footer>
-      © SustSol GmbH · SusDoX Web Patientenportal
-    </footer>
+          <section class="patient-card" aria-label="Daten bearbeiten" id="account-edit-card" hidden style="margin-top:12px;">
+            <div class="patient-icon" aria-hidden="true">
+              <!-- SVG: Settings -->
+              <svg class="icon icon-lg" viewBox="0 0 24 24">
+                <path class="icon-stroke" d="M12 15a3 3 0 100-6 3 3 0 000 6z"></path>
+                <path class="icon-stroke" d="M19.4 15a7.7 7.7 0 00.1-2l2-1.2-2-3.6-2.3.6a7.7 7.7 0 00-1.7-1l-.3-2.4H10l-.3 2.4a7.7 7.7 0 00-1.7 1L5.7 8.2 3.7 11.8l2 1.2a7.7 7.7 0 000 2l-2 1.2 2 3.6 2.3-.6a7.7 7.7 0 001.7 1l.3 2.4h4l.3-2.4a7.7 7.7 0 001.7-1l2.3.6 2-3.6z"></path>
+              </svg>
+            </div>
+            <div class="patient-info" style="width:100%;">
+              <p class="patient-name">Daten bearbeiten</p>
+              <p class="patient-meta">Änderungen werden nach „Speichern“ übernommen.</p>
+
+              <form id="account-form" style="margin-top:14px;">
+                <div class="own-grid">
+                  <div class="form-row">
+                    <label class="form-label" for="acc-title">Titel</label>
+                    <input class="input" id="acc-title" name="title" value="M.A." />
+                  </div>
+
+                  <div class="form-row">
+                    <label class="form-label" for="acc-firstname">Vorname</label>
+                    <input class="input" id="acc-firstname" name="firstname" value="Peregrin" />
+                  </div>
+
+                  <div class="form-row">
+                    <label class="form-label" for="acc-lastname">Nachname</label>
+                    <input class="input" id="acc-lastname" name="lastname" value="Lackner" />
+                  </div>
+
+                  <div class="form-row">
+                    <label class="form-label" for="acc-address">Adresse</label>
+                    <input class="input" id="acc-address" name="address" value="Martin Rom Straße 17" />
+                  </div>
+
+                  <div class="form-row">
+                    <label class="form-label" for="acc-zip">PLZ</label>
+                    <input class="input" id="acc-zip" name="zip" inputmode="numeric" value="9300" />
+                  </div>
+
+                  <div class="form-row">
+                    <label class="form-label" for="acc-city">Ort</label>
+                    <input class="input" id="acc-city" name="city" value="St. Veit" />
+                  </div>
+
+                  <div class="form-row">
+                    <label class="form-label" for="acc-phone">Telefon</label>
+                    <input class="input" id="acc-phone" name="phone" type="tel" value="0660 40 30 30 2" />
+                  </div>
+
+                  <div class="form-row">
+                    <label class="form-label" for="acc-email">E-Mail *</label>
+                    <input class="input" id="acc-email" name="email" type="email" placeholder="name@domain.at" required />
+                  </div>
+                </div>
+
+                <div style="height:1px;background:var(--border-subtle);opacity:.9;margin:14px 0;"></div>
+
+                <div class="own-grid">
+                  <div class="form-row">
+                    <label class="form-label" for="acc-svnr">SV-Nummer</label>
+                    <input class="input" id="acc-svnr" name="svnr" value="1322 070479" readonly />
+                  </div>
+
+                  <div class="form-row">
+                    <label class="form-label" for="acc-pin">PIN-Code</label>
+                    <div style="display:flex; gap:10px; align-items:center; width:100%;">
+                      <input class="input" id="acc-pin" type="password" value="******" disabled style="flex:1;" />
+                      <button class="btn-secondary" type="button" id="acc-pin-change-btn">ändern</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="exam-actions">
+                  <button class="btn-primary" type="submit">Änderungen speichern</button>
+                  <button class="btn-secondary" type="button" id="acc-cancel-btn">Abbrechen</button>
+                </div>
+
+                <div class="status" id="account-status" aria-live="polite"></div>
+              </form>
+
+              <div class="card" style="margin-top:16px;">
+                <div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+                  <div style="font-weight:600;">Login & Sicherheit</div>
+                  <div class="muted">Optionale Anmeldung über ID Austria</div>
+                </div>
+                <p class="muted" style="margin:8px 0 10px 0;">
+                  Sie können Ihr Konto zusätzlich mit <strong>ID Austria</strong> verknüpfen.
+                </p>
+                <div class="exam-actions">
+                  <button class="btn-secondary" type="button" id="idaustria-btn">
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" style="margin-right:6px;">
+                      <path class="icon-stroke" d="M7 11V8a5 5 0 0110 0v3"></path>
+                      <path class="icon-stroke" d="M6 11h12v10H6z"></path>
+                    </svg>
+                    Mit ID Austria anmelden
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </section>
+
+          <div class="page-footer">© SustSol GmbH · Graz · SusDoX Web Patientenportal</div>
+        </section>
+
+        <!-- =========================================================
+          PAGE: SUPPORT
+        ========================================================== -->
+        <section class="page" data-page="support" aria-labelledby="support-title">
+          <section aria-labelledby="support-title">
+            <h1 class="page-title" id="support-title">Support</h1>
+            <p class="page-description">Kontakt und Hilfe zum Patientenportal.</p>
+          </section>
+
+          <section class="card" aria-label="Kontakt" style="margin-top:14px;">
+            <div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+              <div style="font-weight:600;">Kontakt</div>
+              <div class="muted">Antwort i. d. R. innerhalb von 1–2 Werktagen</div>
+            </div>
+            <div class="muted" style="margin-top:10px;">
+              E-Mail: support@sustsol.at · Telefon: +43 (0) …<br/>
+              Bitte geben Sie wenn möglich Ihre SV-Nummer und das Datum der Untersuchung an.
+            </div>
+          </section>
+
+          <div class="page-footer">© SustSol GmbH · Graz · SusDoX Web Patientenportal</div>
+        </section>
+
+      </main>
+    </div>
   </div>
 
-  <!--
-    MODAL: KI-BEFUNDERKLÄRUNG / ÜBERSETZUNG
-    - Wird von allen „KI“-Buttons verwendet
-    - Barrierefrei: role="dialog", aria-modal, Fokussteuerung per JS
-  -->
-  <div
-    class="modal-backdrop"
-    id="ki-modal-backdrop"
-    role="presentation"
-    aria-hidden="true"
-  >
-    <div
-      class="modal"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="ki-modal-title"
-      aria-describedby="ki-modal-description"
-    >
+  <!-- =========================================================
+    KI MODAL
+  ========================================================== -->
+  <div class="modal-overlay" id="ai-modal" hidden aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ai-modal-title">
       <div class="modal-header">
-        <h2 id="ki-modal-title" class="modal-title">
-          KI-Unterstützung für Ihren Befund
-        </h2>
-        <button
-          type="button"
-          class="modal-close-btn"
-          aria-label="Dialog schließen"
-          id="ki-modal-close-btn"
-        >
-          ×
+        <h2 class="modal-title" id="ai-modal-title">KI-Unterstützung für Ihren Befund</h2>
+        <button class="modal-close-icon" type="button" id="ai-close-btn" aria-label="Schließen">
+          <!-- SVG: Close -->
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path class="icon-stroke" d="M6 6l12 12"></path>
+            <path class="icon-stroke" d="M18 6l-12 12"></path>
+          </svg>
         </button>
       </div>
 
-      <p id="ki-modal-description" class="modal-text">
-        Hier können Sie Ihren Befund in einfacher Sprache erklären oder in eine andere Sprache
-        übersetzen lassen. Dieser Service ersetzt keine ärztliche Beratung.
-      </p>
+      <div class="modal-body">
+        <!-- Modal-Subtext ist statisch -> kein dynamic -->
+        <p class="modal-text" id="ai-modal-sub">
+          Hier können Sie Ihren Befund in einfacher Sprache erklären oder in eine andere Sprache übersetzen lassen.
+          Dieser Service ersetzt keine ärztliche Beratung.
+        </p>
 
-      <!-- =========================
-           NEU: Disclaimer (Anonymisierung + Kosten + Partner)
-           - bewusst VOR den Eingabefeldern platziert (Usability: erst informieren, dann handeln)
-           ========================= -->
-      <div class="modal-disclaimer" role="note" aria-label="Hinweis zu Anonymisierung und Kosten">
-        <strong>Wichtiger Hinweis:</strong><br />
-        Ihr Befund wird vor der Verarbeitung automatisch <strong>anonymisiert</strong> und erst danach
-        an den KI-Dienst in Kooperation mit <strong>Radishmed / MedUni Graz</strong> weitergeleitet.<br />
-        <div class="modal-price-row">
-          <span class="price-badge" aria-label="Preis">
-            Preis: 2,50&nbsp;€ pro Befundvereinfachung
-          </span>
+        <div class="ai-disclaimer" role="note" aria-label="Wichtiger Hinweis">
+          <div><strong>Wichtiger Hinweis:</strong></div>
+          <div style="margin-top:4px;">
+            Ihr Befund wird vor der Verarbeitung automatisch <strong>anonymisiert</strong> und erst danach an den KI-Dienst
+            in Kooperation mit <strong>Radishmed / MedUni Graz</strong> weitergeleitet.
+          </div>
+
+          <div class="ai-price-badge" aria-label="Preis">Preis: 2,50 € pro Befundvereinfachung</div>
+
+          <div style="margin-top:6px; color:var(--text-subtle);">
+            Die KI-Erklärung dient der Verständlichkeit und ersetzt keine ärztliche Diagnose oder Beratung.
+          </div>
         </div>
-        <div style="margin-top:6px; color: var(--text-subtle);">
-          Die KI-Erklärung dient der Verständlichkeit und ersetzt keine ärztliche Diagnose oder Beratung.
+
+        <div class="ai-consent-box">
+          <input id="ai-consent" type="checkbox" />
+          <label for="ai-consent">
+            Ich habe den Hinweis zur <strong>Anonymisierung</strong> gelesen und akzeptiere die
+            <strong>Kosten von 2,50 €</strong> für diese Anfrage.
+            <small>Sie können den Vorgang jederzeit mit „Abbrechen“ beenden.</small>
+          </label>
         </div>
-      </div>
 
-      <!-- NEU: Consent-Checkbox (damit der User aktiv zustimmt; Start-Button erst dann aktiv) -->
-      <div class="modal-consent">
-        <input type="checkbox" id="ki-consent" />
-        <label for="ki-consent">
-          Ich habe den Hinweis zur <strong>Anonymisierung</strong> gelesen und akzeptiere die
-          <strong>Kosten von 2,50&nbsp;€</strong> für diese Anfrage.
-          <small>Sie können den Vorgang jederzeit mit „Abbrechen“ beenden.</small>
-        </label>
-      </div>
-      <div id="ki-consent-error" class="modal-consent-error" aria-live="polite">
-        Bitte bestätigen Sie zuerst Anonymisierung und Kosten, um fortzufahren.
-      </div>
+        <div class="ai-consent-error" id="ai-consent-error" aria-live="polite">
+          Bitte bestätigen Sie zuerst Anonymisierung und Kosten, um fortzufahren.
+        </div>
 
-      <!-- Form-Elemente zur Steuerung des KI-Calls -->
-      <div class="modal-form-row">
-        <label class="modal-label" for="ki-mode-select">Funktion:</label>
-        <select id="ki-mode-select" class="modal-select">
-          <option value="explain">Befund einfach erklären</option>
-          <option value="translate">Befund übersetzen</option>
-        </select>
-      </div>
+        <div class="ai-form-row">
+          <label class="ai-label" for="ai-mode">Funktion:</label>
+          <select id="ai-mode" class="modal-select">
+            <option value="explain">Befund einfach erklären</option>
+            <option value="translate">Befund übersetzen</option>
+          </select>
+        </div>
 
-      <div class="modal-form-row">
-        <label class="modal-label" for="ki-language-select">
-          Zielsprache (für Erklärung oder Übersetzung):
-        </label>
-        <select id="ki-language-select" class="modal-select">
-          <option value="de-easy">Deutsch – einfache Sprache (Empfehlung)</option>
-          <option value="de">Deutsch (Fachsprache)</option>
-          <option value="en">Englisch</option>
-          <option value="hr">Kroatisch</option>
-          <option value="sr">Serbisch</option>
-          <option value="bs">Bosnisch</option>
-          <option value="tr">Türkisch</option>
-        </select>
-      </div>
+        <div class="ai-form-row">
+          <label class="ai-label" for="ai-lang">Zielsprache (für Erklärung oder Übersetzung):</label>
+          <select id="ai-lang" class="modal-select">
+            <option value="de-easy" selected>Deutsch – einfache Sprache (Empfehlung)</option>
+            <option value="de">Deutsch (Fachsprache)</option>
+            <option value="en">Englisch</option>
+            <option value="hr">Kroatisch</option>
+            <option value="sr">Serbisch</option>
+            <option value="bs">Bosnisch</option>
+            <option value="tr">Türkisch</option>
+          </select>
+        </div>
 
-      <div class="modal-form-row">
-        <label class="modal-label" for="ki-notes">
-          Optional: Eigene Frage / Hinweis an die KI:
-        </label>
-        <textarea
-          id="ki-notes"
-          class="modal-textarea"
-          rows="2"
-          placeholder="Zum Beispiel: Bitte erklären Sie mir besonders den Teil über die Lunge."
-        ></textarea>
-      </div>
+        <div class="ai-form-row">
+          <label class="ai-label" for="ai-notes">Optional: Eigene Frage / Hinweis an die KI:</label>
+          <textarea id="ai-notes" class="modal-textarea" placeholder="Zum Beispiel: Bitte erklären Sie mir besonders den Teil über die Lunge."></textarea>
+        </div>
 
-      <div class="modal-actions">
-        <button type="button" class="btn-secondary" id="ki-modal-cancel-btn">
-          Abbrechen
-        </button>
-        <!-- Start-Button wird per JS aktiviert, wenn Consent gesetzt ist -->
-        <button type="button" class="btn-primary" id="ki-modal-start-btn" disabled>
-          KI-Anfrage starten
-        </button>
-      </div>
+        <div class="modal-actions">
+          <button class="btn-secondary" type="button" id="ai-cancel-btn">Abbrechen</button>
+          <button class="btn-primary" type="button" id="ai-start-btn" disabled>KI-Anfrage starten</button>
+        </div>
 
-      <div id="ki-modal-loading" class="modal-loading" style="display:none;">
-        KI-Anfrage wird verarbeitet … bitte warten.
-      </div>
+        <div class="modal-status" id="ai-status" aria-live="polite"></div>
 
-      <div id="ki-modal-result" class="modal-result">
-        <div class="modal-result-placeholder">
-          Hier erscheint die KI-Erklärung oder Übersetzung zum ausgewählten Befund.
+        <!-- Ergebnisbereich ist dynamisch -->
+        <div class="ai-result" id="ai-result" dynamic>
+          <div class="ai-result-placeholder">Hier erscheint die KI-Erklärung oder Übersetzung zum ausgewählten Befund.</div>
         </div>
       </div>
     </div>
   </div>
 
   <script>
-    // ############################################################
-    //  FRONTEND-LOGIK FÜR DIE KI-INTEGRATION (dein Code bleibt erhalten)
-    //  + kleine Erweiterung: Consent-Checkbox steuert Start-Button
-    // ############################################################
+    /* =========================================================
+      (4) INTERFACE HOOKS (werden von externer Seite überschrieben)
+    ========================================================= */
+    globalThis.interface = globalThis.interface || {};
 
-    const kiModalBackdrop = document.getElementById('ki-modal-backdrop');
-    const kiModalCloseBtn = document.getElementById('ki-modal-close-btn');
-    const kiModalCancelBtn = document.getElementById('ki-modal-cancel-btn');
-    const kiModalStartBtn = document.getElementById('ki-modal-start-btn');
-    const kiModeSelect = document.getElementById('ki-mode-select');
-    const kiLanguageSelect = document.getElementById('ki-language-select');
-    const kiNotesInput = document.getElementById('ki-notes');
-    const kiResultBox = document.getElementById('ki-modal-result');
-    const kiLoadingText = document.getElementById('ki-modal-loading');
+    // Session / Navigation
+    globalThis.interface.logout = globalThis.interface.logout || (() => {});
+    globalThis.interface.onPageChange = globalThis.interface.onPageChange || ((pageId) => {});
 
-    // NEU: Consent Elemente
-    const kiConsent = document.getElementById('ki-consent');
-    const kiConsentError = document.getElementById('ki-consent-error');
+    // Exams
+    globalThis.interface.openReportPdf = globalThis.interface.openReportPdf || ((examId) => {});
+    globalThis.interface.showImages = globalThis.interface.showImages || ((examId) => {});
 
-    let kiCurrentExamId = null;
-    let kiLastFocusedElement = null;
+    // Uploads
+    globalThis.interface.uploadExamFiles = globalThis.interface.uploadExamFiles || (async (_examId, _files) => {});
+    globalThis.interface.createPatientExam = globalThis.interface.createPatientExam || (async (_meta, _report, _images) => ({ }));
 
-    // Utility: Modal öffnen
-    function openKiModal(examId, mode) {
-      kiCurrentExamId = examId;
-      kiLastFocusedElement = document.activeElement;
+    // Account
+    globalThis.interface.saveAccount = globalThis.interface.saveAccount || (async (_data) => {});
+    globalThis.interface.changePin = globalThis.interface.changePin || (async () => {});
+    globalThis.interface.loginIdAustria = globalThis.interface.loginIdAustria || (async () => {});
 
-      if (mode === 'explain') {
-        kiModeSelect.value = 'explain';
-      } else if (mode === 'translate') {
-        kiModeSelect.value = 'translate';
-      }
+    // AI
+    globalThis.interface.retrieveAIReport = globalThis.interface.retrieveAIReport || (async (_payload) => ({ resultText: "" }));
 
-      // Vorherigen Inhalt zurücksetzen
-      kiNotesInput.value = '';
-      kiResultBox.innerHTML =
-        '<div class="modal-result-placeholder">Hier erscheint die KI-Erklärung oder Übersetzung zum ausgewählten Befund.</div>';
-      kiLoadingText.style.display = 'none';
 
-      // NEU: Consent Reset
-      kiConsent.checked = false;
-      kiModalStartBtn.disabled = true;
-      kiConsentError.style.display = 'none';
+    /* =========================================================
+      SPA NAVIGATION
+    ========================================================= */
+    (function initNavigation(){
+      const navBtns = Array.from(document.querySelectorAll('nav .nav-link[data-page]'));
+      const pages = Array.from(document.querySelectorAll('main .page[data-page]'));
 
-      // Modal sichtbar setzen
-      kiModalBackdrop.setAttribute('aria-hidden', 'false');
+      const searchWrap = document.getElementById('header-search-wrap');
+      const searchInput = document.getElementById('exam-search');
 
-      // Fokus in den Dialog setzen (Barrierefreiheit)
-      kiModeSelect.focus();
-    }
+      function showPage(pageId){
+        pages.forEach(p => p.classList.toggle('is-active', p.getAttribute('data-page') === pageId));
 
-    // Utility: Modal schließen
-    function closeKiModal() {
-      kiModalBackdrop.setAttribute('aria-hidden', 'true');
-      kiCurrentExamId = null;
-
-      if (kiLastFocusedElement && typeof kiLastFocusedElement.focus === 'function') {
-        kiLastFocusedElement.focus();
-      }
-    }
-
-    // ESC-Taste zum Schließen des Dialogs
-    document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && kiModalBackdrop.getAttribute('aria-hidden') === 'false') {
-        closeKiModal();
-      }
-    });
-
-    // Klicks auf die Schließen/Abbrechen-Buttons
-    kiModalCloseBtn.addEventListener('click', closeKiModal);
-    kiModalCancelBtn.addEventListener('click', closeKiModal);
-
-    // NEU: Consent steuert Start-Button (Usability + Kostentransparenz)
-    kiConsent.addEventListener('change', () => {
-      kiModalStartBtn.disabled = !kiConsent.checked;
-      if (kiConsent.checked) {
-        kiConsentError.style.display = 'none';
-      }
-    });
-
-    // Buttons in der Untersuchungs-Liste anbinden
-    document.querySelectorAll('.exam-item').forEach((item) => {
-      const examId = item.getAttribute('data-exam-id');
-      const explainBtn = item.querySelector('.js-ki-explain');
-      const translateBtn = item.querySelector('.js-ki-translate');
-
-      if (explainBtn) {
-        explainBtn.addEventListener('click', () => {
-          openKiModal(examId, 'explain');
+        navBtns.forEach(b => {
+          const active = b.getAttribute('data-page') === pageId;
+          if (active) b.setAttribute('aria-current','page');
+          else b.removeAttribute('aria-current');
         });
+
+        const isExams = (pageId === 'exams');
+        if (searchWrap) searchWrap.hidden = !isExams;
+
+        if (searchInput){
+          if (!isExams) searchInput.value = '';
+          if (isExams) searchInput.dispatchEvent(new Event('input'));
+        }
+
+        // Hook
+        try { globalThis.interface.onPageChange(pageId); } catch {}
+
+        document.getElementById('main')?.focus?.();
       }
-      if (translateBtn) {
-        translateBtn.addEventListener('click', () => {
-          openKiModal(examId, 'translate');
+
+      navBtns.forEach(btn => btn.addEventListener('click', () => showPage(btn.getAttribute('data-page'))));
+      showPage('exams');
+      window.__susdoxShowPage = showPage;
+    })();
+
+    /* =========================================================
+      LOGOUT BUTTON -> interface.logout()
+    ========================================================= */
+    (function initLogout(){
+      const btn = document.getElementById('logout-btn');
+      if (!btn) return;
+      btn.addEventListener('click', () => {
+        try { globalThis.interface.logout(); } catch {}
+      });
+    })();
+
+    /* =========================================================
+      UNTERSUCHUNGEN: SUCHFILTER
+      - jetzt über #exam-items (dynamic-list)
+    ========================================================= */
+    (function initExamSearch(){
+      const search = document.getElementById('exam-search');
+      const list = document.getElementById('exam-items');
+      const countEl = document.getElementById('exam-count');
+      if (!search || !list || !countEl) return;
+
+      function getText(detailsEl){
+        const summary = detailsEl.querySelector('summary')?.innerText || '';
+        const body = detailsEl.querySelector('.exam-body')?.innerText || '';
+        return (summary + ' ' + body).toLowerCase();
+      }
+
+      function apply(){
+        const q = (search.value || '').trim().toLowerCase();
+        const items = Array.from(list.querySelectorAll('details.exam-item'));
+
+        let visible = 0;
+        items.forEach(d => {
+          const show = !q || getText(d).includes(q);
+          d.style.display = show ? '' : 'none';
+          if (show) visible++;
         });
-      }
-    });
 
-    // KI Call
-    kiModalStartBtn.addEventListener('click', () => {
-      if (!kiCurrentExamId) return;
-
-      // NEU: Safety-Check (falls jemand disabled per DevTools entfernt)
-      if (!kiConsent.checked) {
-        kiConsentError.style.display = 'block';
-        return;
+        countEl.textContent = `${visible} Einträge gefunden`;
       }
 
-      const mode = kiModeSelect.value;
-      const targetLanguage = kiLanguageSelect.value;
-      const notes = kiNotesInput.value.trim();
+      search.addEventListener('input', apply);
+      apply();
+    })();
 
-      kiLoadingText.style.display = 'block';
-      kiResultBox.innerHTML = '';
+    /* =========================================================
+      OPEN PDF / SHOW IMAGES -> interface hooks
+    ========================================================= */
+    (function initOpeners(){
+      document.addEventListener('click', (e) => {
+        const openBtn = e.target.closest('.js-open-report');
+        if (openBtn){
+          const examId = openBtn.getAttribute('data-exam-id') || null;
+          try { globalThis.interface.openReportPdf(examId); } catch {}
+          return;
+        }
+        const imgBtn = e.target.closest('.js-show-images');
+        if (imgBtn){
+          const examId = imgBtn.getAttribute('data-exam-id') || null;
+          try { globalThis.interface.showImages(examId); } catch {}
+          return;
+        }
+      });
+    })();
 
-      const payload = {
-        examId: kiCurrentExamId,
-        mode: mode,
-        targetLanguage: targetLanguage,
-        notes: notes,
+    /* =========================================================
+      UPLOADS (bestehende Untersuchungen)
+      - nutzt interface.uploadExamFiles()
+      - Fallback: ursprüngliches POST /api/upload
+    ========================================================= */
+    (function initExamUploads(){
+      const allowed = ['application/pdf','image/jpeg','image/png'];
 
-        // OPTIONAL (wenn ihr es im Backend loggen wollt):
-        // priceCents: 250,
-        // partner: "Radishmed/MedUniGraz",
-        // anonymization: true
-      };
+      function setStatus(detailsEl, msg, kind){
+        const st = detailsEl.querySelector('.status');
+        if (!st) return;
+        st.classList.remove('is-success','is-error');
+        if (kind === 'success') st.classList.add('is-success');
+        if (kind === 'error') st.classList.add('is-error');
+        st.textContent = msg || '';
+      }
 
-      // HIER KI-PARTNER / BACKEND ANBINDEN
-      fetch('/api/ki/befund', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
-        .then(async (response) => {
-          if (!response.ok) throw new Error('Serverfehler: ' + response.status);
-          return response.json();
-        })
-        .then((data) => {
-          kiLoadingText.style.display = 'none';
+      function validate(files){
+        const list = Array.from(files || []);
+        const valid = list.filter(f => allowed.includes(f.type));
+        const invalid = list.filter(f => !allowed.includes(f.type));
+        return { valid, invalid };
+      }
 
-          if (data && data.success && data.resultText) {
-            kiResultBox.textContent = data.resultText;
+      document.addEventListener('click', (e) => {
+        const btn = e.target.closest('.js-upload-btn');
+        if (!btn) return;
+
+        const examId = btn.getAttribute('data-exam-id');
+        const detailsEl = btn.closest('details.exam-item');
+        const input = detailsEl?.querySelector(`.js-upload-input[data-exam-id="${examId}"]`);
+        if (!input) return;
+
+        setStatus(detailsEl, '', null);
+        input.click();
+      });
+
+      document.addEventListener('change', async (e) => {
+        const input = e.target.closest('.js-upload-input');
+        if (!input) return;
+
+        const detailsEl = input.closest('details.exam-item');
+        const examId = input.getAttribute('data-exam-id');
+        const btn = detailsEl?.querySelector(`.js-upload-btn[data-exam-id="${examId}"]`);
+
+        const { valid, invalid } = validate(input.files);
+
+        if (invalid.length) setStatus(detailsEl, 'Nicht unterstützte Datei(en). Bitte nur PDF, JPG oder PNG.', 'error');
+        if (!valid.length){ input.value = ''; return; }
+
+        const old = btn ? btn.textContent : '';
+        if (btn){ btn.disabled = true; btn.textContent = 'Upload läuft …'; }
+        setStatus(detailsEl, 'Upload läuft …', null);
+
+        try{
+          if (globalThis.interface?.uploadExamFiles){
+            await globalThis.interface.uploadExamFiles(examId, valid);
           } else {
-            kiResultBox.innerHTML =
-              '<div class="modal-result-placeholder">Leider konnte keine KI-Antwort erzeugt werden. Bitte versuchen Sie es später erneut.</div>';
+            const fd = new FormData();
+            valid.forEach(f => fd.append('files', f));
+            fd.append('examId', examId);
+            const resp = await fetch('/api/upload', { method:'POST', body: fd });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
           }
-        })
-        .catch((error) => {
-          console.error('Fehler bei KI-Anfrage:', error);
-          kiLoadingText.style.display = 'none';
-          kiResultBox.innerHTML =
-            '<div class="modal-result-placeholder">Es ist ein Fehler bei der KI-Anfrage aufgetreten. Bitte versuchen Sie es später erneut.</div>';
-        });
-    });
+
+          setStatus(detailsEl, 'Upload erfolgreich. Dokument(e) werden verarbeitet.', 'success');
+        }catch(err){
+          console.error(err);
+          setStatus(detailsEl, 'Upload fehlgeschlagen. Bitte später erneut versuchen.', 'error');
+        }finally{
+          input.value = '';
+          if (btn){ btn.disabled = false; btn.textContent = old || 'Dokument hochladen'; }
+        }
+      });
+    })();
+
+    /* =========================================================
+      PATIENTEN-UPLOAD: "Eigene Untersuchung hinzufügen"
+      - nutzt interface.createPatientExam() (Meta+Dateien)
+      - WICHTIG: innerhalb dynamic-list keine weiteren dynamic marker
+    ========================================================= */
+    (function initOwnExamCreate(){
+      const form = document.getElementById('own-exam-form');
+      if (!form) return;
+
+      const statusEl = document.getElementById('own-form-status');
+      const report = document.getElementById('own-report');
+      const images = document.getElementById('own-images');
+      const submitBtn = document.getElementById('own-submit-btn');
+      const resetBtn = document.getElementById('own-reset-btn');
+      const itemsWrap = document.getElementById('exam-items');
+      const search = document.getElementById('exam-search');
+
+      function setStatus(msg, kind){
+        statusEl.classList.remove('is-success','is-error');
+        if (kind === 'success') statusEl.classList.add('is-success');
+        if (kind === 'error') statusEl.classList.add('is-error');
+        statusEl.textContent = msg || '';
+      }
+
+      function fmtDate(iso){
+        if (!iso) return '—';
+        const [y,m,d] = iso.split('-');
+        return (y && m && d) ? `${d}.${m}.${y}` : iso;
+      }
+
+      function esc(s){
+        return String(s||'')
+          .replaceAll('&','&amp;')
+          .replaceAll('<','&lt;')
+          .replaceAll('>','&gt;')
+          .replaceAll('"','&quot;')
+          .replaceAll("'","&#039;");
+      }
+
+      function renderPatientExam(exam){
+        const examId = esc(exam.examId);
+        const title = esc(exam.title);
+        const sub = esc(exam.provider || 'Patienten-Upload');
+        const type = esc(exam.type || 'Sonstiges');
+        const dateDE = esc(fmtDate(exam.date));
+        const location = esc(exam.location || '—');
+        const notes = esc(exam.notes || '');
+        const reportName = esc(exam.reportName || '—');
+        const imageNames = (exam.imageNames || []).map(esc).join(', ') || '—';
+
+        return `
+<details class="exam-item" data-exam-id="${examId}">
+  <summary>
+    <div class="exam-header-main">
+      <div class="exam-folder-icon" aria-hidden="true">
+        <svg class="icon icon-lg" viewBox="0 0 24 24">
+          <path class="icon-stroke" d="M3 7h7l2 2h9v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+        </svg>
+      </div>
+      <div class="exam-text-block">
+        <div class="exam-title">${title}</div>
+        <div class="exam-sub">${sub}</div>
+      </div>
+    </div>
+    <div class="exam-header-meta">
+      <span class="exam-date">${dateDE}</span>
+      <span class="exam-type">${type} · Patienten-Upload</span>
+    </div>
+    <div class="exam-chevron" aria-hidden="true">
+      <svg class="icon" viewBox="0 0 24 24">
+        <path class="icon-stroke" d="M9 18l6-6-6-6"></path>
+      </svg>
+    </div>
+  </summary>
+
+  <div class="exam-body">
+    <div class="exam-body-grid">
+      <div>
+        <div class="exam-body-row"><span class="exam-body-label">Ort:</span><span>${location}</span></div>
+        <div class="exam-body-row"><span class="exam-body-label">Status:</span><span>Patienten-Upload gespeichert</span></div>
+        ${notes ? `<div class="exam-body-row"><span class="exam-body-label">Hinweis:</span><span>${notes}</span></div>` : ''}
+      </div>
+      <div>
+        <div class="exam-body-row"><span class="exam-body-label">Befund (PDF):</span><span>${reportName}</span></div>
+        <div class="exam-body-row"><span class="exam-body-label">Bilder:</span><span>${imageNames}</span></div>
+      </div>
+    </div>
+
+    <div class="exam-actions">
+      <button class="btn-primary js-open-report" data-exam-id="${examId}" type="button" disabled>Befund öffnen (PDF)</button>
+      <button class="btn-secondary js-show-images" data-exam-id="${examId}" type="button" disabled>Bilder anzeigen</button>
+
+      <button class="btn-secondary js-ki-explain" data-exam-id="${examId}" type="button">Befund einfach erklären (KI)</button>
+      <button class="btn-secondary js-ki-translate" data-exam-id="${examId}" type="button">Befund übersetzen (KI)</button>
+
+      <button class="btn-secondary js-upload-btn" data-exam-id="${examId}" type="button">Weitere Dateien hochladen</button>
+      <input class="js-upload-input" data-exam-id="${examId}" type="file" accept=".pdf,image/jpeg,image/png" multiple hidden />
+    </div>
+
+    <div class="status" aria-live="polite"></div>
+  </div>
+</details>`;
+      }
+
+      resetBtn?.addEventListener('click', () => { form.reset(); setStatus('', null); });
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        setStatus('', null);
+
+        const data = new FormData(form);
+        const title = (data.get('title')||'').toString().trim();
+        const date = (data.get('date')||'').toString().trim();
+        const type = (data.get('type')||'').toString().trim();
+        const provider = (data.get('provider')||'').toString().trim();
+        const location = (data.get('location')||'').toString().trim();
+        const notes = (data.get('notes')||'').toString().trim();
+
+        const reportFile = report?.files?.[0] || null;
+        const imageFiles = Array.from(images?.files || []);
+
+        if (!title || !date || !type){
+          setStatus('Bitte Titel, Datum und Untersuchungsart ausfüllen.', 'error'); return;
+        }
+        if (!reportFile || reportFile.type !== 'application/pdf'){
+          setStatus('Bitte einen Befund als PDF auswählen.', 'error'); return;
+        }
+        if (!imageFiles.length){
+          setStatus('Bitte mindestens ein Bild (JPG/PNG) auswählen.', 'error'); return;
+        }
+        if (imageFiles.some(f => !['image/jpeg','image/png'].includes(f.type))){
+          setStatus('Bilder bitte nur als JPG oder PNG hochladen.', 'error'); return;
+        }
+
+        const old = submitBtn.textContent;
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Speichern & Upload …';
+
+        let examId = `pat-${Date.now()}`;
+
+        try{
+          const meta = { title, date, type, provider, location, notes };
+          const res = await globalThis.interface.createPatientExam(meta, reportFile, imageFiles);
+          if (res?.examId) examId = String(res.examId);
+          setStatus('Gespeichert. Upload erfolgreich – Daten werden verarbeitet.', 'success');
+        }catch(err){
+          console.error(err);
+          setStatus('Gespeichert. Upload derzeit nicht erreichbar.', 'error');
+        }finally{
+          const exam = {
+            examId, title, date, type, provider, location, notes,
+            reportName: reportFile?.name,
+            imageNames: imageFiles.map(f => f.name)
+          };
+
+          const wrapper = document.createElement('div');
+          wrapper.innerHTML = renderPatientExam(exam).trim();
+          const node = wrapper.firstElementChild;
+          if (node && itemsWrap) itemsWrap.insertBefore(node, itemsWrap.firstChild);
+
+          submitBtn.disabled = false;
+          submitBtn.textContent = old;
+          form.reset();
+
+          if (search) search.dispatchEvent(new Event('input'));
+        }
+      });
+    })();
+
+    /* =========================================================
+      ACCOUNT: Edit show/hide + Save -> interface.saveAccount()
+    ========================================================= */
+    (function initAccount(){
+      const editBtn = document.getElementById('account-edit-btn');
+      const editCard = document.getElementById('account-edit-card');
+      const cancelBtn = document.getElementById('acc-cancel-btn');
+      const form = document.getElementById('account-form');
+      const statusEl = document.getElementById('account-status');
+      const pinBtn = document.getElementById('acc-pin-change-btn');
+      const idaBtn = document.getElementById('idaustria-btn');
+
+      if (!editBtn || !editCard) return;
+
+      function setStatus(msg, kind){
+        statusEl?.classList.remove('is-success','is-error');
+        if (kind === 'success') statusEl?.classList.add('is-success');
+        if (kind === 'error') statusEl?.classList.add('is-error');
+        if (statusEl) statusEl.textContent = msg || '';
+      }
+
+      editCard.hidden = true;
+
+      editBtn.addEventListener('click', () => {
+        editCard.hidden = false;
+        editCard.scrollIntoView({ behavior:'smooth', block:'start' });
+        const first = editCard.querySelector('input,select,textarea');
+        first?.focus?.();
+      });
+
+      cancelBtn?.addEventListener('click', () => {
+        editCard.hidden = true;
+      });
+
+      pinBtn?.addEventListener('click', async () => {
+        setStatus('', null);
+        try{
+          await globalThis.interface.changePin();
+          setStatus('PIN-Änderung gestartet.', 'success');
+        }catch(err){
+          console.error(err);
+          setStatus('PIN-Änderung fehlgeschlagen.', 'error');
+        }
+      });
+
+      idaBtn?.addEventListener('click', async () => {
+        setStatus('', null);
+        try{
+          await globalThis.interface.loginIdAustria();
+          setStatus('ID Austria Anmeldevorgang gestartet.', 'success');
+        }catch(err){
+          console.error(err);
+          setStatus('ID Austria Anmeldung fehlgeschlagen.', 'error');
+        }
+      });
+
+      form?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        setStatus('Speichern …', null);
+
+        const fd = new FormData(form);
+        const data = Object.fromEntries(fd.entries());
+
+        try{
+          await globalThis.interface.saveAccount(data);
+          setStatus('Gespeichert.', 'success');
+        }catch(err){
+          console.error(err);
+          setStatus('Speichern fehlgeschlagen.', 'error');
+        }
+      });
+    })();
+
+    /* =========================================================
+      KI MODAL: Öffnen/Schließen + Consent + interface.retrieveAIReport()
+    ========================================================= */
+    (function initAiModal(){
+      const modal = document.getElementById('ai-modal');
+      const closeBtn = document.getElementById('ai-close-btn');
+      const cancelBtn = document.getElementById('ai-cancel-btn');
+      const startBtn = document.getElementById('ai-start-btn');
+      const consent = document.getElementById('ai-consent');
+      const consentErr = document.getElementById('ai-consent-error');
+      const modeSel = document.getElementById('ai-mode');
+      const langSel = document.getElementById('ai-lang');
+      const notesEl = document.getElementById('ai-notes');
+      const statusEl = document.getElementById('ai-status');
+      const resultEl = document.getElementById('ai-result');
+      const subEl = document.getElementById('ai-modal-sub');
+
+      if (!modal || !startBtn || !consent || !modeSel) return;
+
+      let lastFocus = null;
+      let currentExamId = null;
+
+      function setStatus(msg, kind){
+        statusEl.classList.remove('is-success','is-error');
+        if (kind === 'success') statusEl.classList.add('is-success');
+        if (kind === 'error') statusEl.classList.add('is-error');
+        statusEl.textContent = msg || '';
+      }
+
+      function setResultPlaceholder(){
+        resultEl.innerHTML = '<div class="ai-result-placeholder">Hier erscheint die KI-Erklärung oder Übersetzung zum ausgewählten Befund.</div>';
+      }
+
+      function open(examId, defaultMode){
+        currentExamId = examId || null;
+        lastFocus = document.activeElement;
+
+        modeSel.value = defaultMode || 'explain';
+        consent.checked = false;
+        startBtn.disabled = true;
+        notesEl.value = '';
+        setStatus('', null);
+        if (consentErr) consentErr.style.display = 'none';
+
+        subEl.textContent =
+          'Hier können Sie Ihren Befund in einfacher Sprache erklären oder in eine andere Sprache übersetzen lassen. Dieser Service ersetzt keine ärztliche Beratung.';
+
+        setResultPlaceholder();
+
+        modal.hidden = false;
+        modal.setAttribute('aria-hidden','false');
+        modeSel.focus();
+      }
+
+      function close(){
+        modal.hidden = true;
+        modal.setAttribute('aria-hidden','true');
+        currentExamId = null;
+        setStatus('', null);
+        if (consentErr) consentErr.style.display = 'none';
+        setResultPlaceholder();
+        if (lastFocus && lastFocus.focus) lastFocus.focus();
+      }
+
+      consent.addEventListener('change', () => {
+        startBtn.disabled = !consent.checked;
+        if (consent.checked && consentErr) consentErr.style.display = 'none';
+      });
+
+      closeBtn?.addEventListener('click', close);
+      cancelBtn?.addEventListener('click', close);
+
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) close();
+      });
+
+      document.addEventListener('keydown', (e) => {
+        if (!modal.hidden && e.key === 'Escape') close();
+      });
+
+      document.addEventListener('click', (e) => {
+        const explainBtn = e.target.closest('.js-ki-explain');
+        const translateBtn = e.target.closest('.js-ki-translate');
+        if (!explainBtn && !translateBtn) return;
+
+        const btn = explainBtn || translateBtn;
+        const examId = btn.getAttribute('data-exam-id')
+          || btn.closest('details.exam-item')?.getAttribute('data-exam-id')
+          || null;
+
+        open(examId, explainBtn ? 'explain' : 'translate');
+      });
+
+      startBtn.addEventListener('click', async () => {
+        if (!consent.checked){
+          if (consentErr) consentErr.style.display = 'block';
+          return;
+        }
+
+        const payload = {
+          examId: currentExamId,
+          mode: modeSel.value,
+          targetLanguage: langSel.value,
+          notes: (notesEl.value || '').trim()
+        };
+
+        startBtn.disabled = true;
+        setStatus('KI-Anfrage wird verarbeitet …', null);
+        resultEl.textContent = '';
+
+        try{
+          const data = await globalThis.interface.retrieveAIReport(payload);
+          const text = data?.resultText || data?.text || data?.result || data?.message || 'KI-Ergebnis erhalten.';
+          resultEl.textContent = text;
+          setStatus('Fertig.', 'success');
+        }catch(err){
+          const demo =
+`[DEMO] ${payload.mode === 'translate' ? 'Übersetzung' : 'Einfache Erklärung'}
+Untersuchung: ${payload.examId || '—'}
+Zielsprache: ${payload.targetLanguage}
+Hinweis: retrieveAIReport() ist nicht implementiert oder schlug fehl.`;
+          resultEl.textContent = demo;
+          setStatus('Demo-Ergebnis angezeigt.', 'error');
+        }finally{
+          startBtn.disabled = !consent.checked;
+          if (!consent.checked && consentErr) consentErr.style.display = 'block';
+        }
+      });
+    })();
   </script>
 </body>
 </html>

@@ -7,8 +7,8 @@ const filePath = Deno.args[0]? resolve(".", Deno.args[0]) : resolve(".", "origin
 console.log(filePath)
 
 const strippedHTMLPath = resolve(".", "dissected/stripped.html")
-const styleCSSPath = resolve(".", "dissected/style.css")
-const scriptJSPath = resolve(".", "dissected/script.js")
+const styleCSSPath = resolve(".", "output/style.css")
+const scriptJSPath = resolve(".", "output/script.js")
 
 //##############################################################################
 const fileContent = fs.readFileSync(filePath, { encoding: 'utf8' })
