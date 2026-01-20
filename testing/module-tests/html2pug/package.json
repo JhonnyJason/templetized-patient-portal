@@ -1,0 +1,14 @@
+{
+  "name": "html2pug-tests",
+  "version": "0.0.1",
+  "description": "Tests the modified html2pug implementation",
+  "dependencies": {
+    "ava": "^1.4.1"
+  },
+  "scripts": {
+    "test": "ava test.js"
+  },
+  "keywords": [],
+  "license": "CC0-1.0",
+  "type": "module"
+}

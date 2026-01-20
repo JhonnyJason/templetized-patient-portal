@@ -6,7 +6,7 @@
 cli-implementation/           (git submodule → templatize-html repo)
 ├── index.js                  Entry point, initializes modules, calls cliStartup()
 ├── config.js                 App name, version, default outputMap
-├── package.json              npm package config, linkedom dependency
+├── package.json              npm package config (linkedom, parse5)
 └── src/
     ├── allmodules.js         Aggregates modules with initialize()
     │
@@ -19,7 +19,13 @@ cli-implementation/           (git submodule → templatize-html repo)
     │   # Utilities (no initialize, direct import)
     ├── cliargument.js        Parse process.argv (input.html, output-map.json)
     ├── fileutils.js          File I/O with hash-based change detection, metaData.json management
-    └── htmlslicer.js         Asset extraction: dissect(html) → {htmlOnly, script, style}
+    ├── htmlslicer.js         Asset extraction: dissect(html) → {htmlOnly, script, style}
+    ├── templatizer.js        (F5) Content extraction + mustache template generation
+    │
+    │   # html2pug (local copy, no initialize)
+    └── html2pug/
+        ├── index.js          html2pug(html, options) entry
+        └── pugifier.js       Pugifier class
 ```
 
 **Module pattern**: Exports `initialize(cfg)`, aggregated in `allmodules.js`, called at startup.
@@ -27,6 +33,53 @@ cli-implementation/           (git submodule → templatize-html repo)
 **Utility pattern**: No initialize, imported directly where needed.
 
 **Migration approach**: Copy logic from `src/` (Deno PoC) adapting for Node.js + linkedom.
+
+## html2pug Dependency
+
+Custom fork: `github.com/JhonnyJason/html2pug` (stripped of unnecessary dependencies)
+
+```
+cli-implementation/src/html2pug/
+├── index.js      html2pug(html, options) entry point
+└── pugifier.js   Pugifier class - DOM tree → Pug conversion
+```
+
+**External dependency**: Uses `linkedom` (shared with rest of CLI)
+
+**Adaptation**: Adapted pugifier.js to work with standard DOM API instead of parse5 AST:
+- Uses `node.nodeValue` instead of `node.value` for text nodes
+- Uses `node.attributes` (NamedNodeMap) instead of `node.attrs` (array)
+- Uses `node.nodeType` for doctype detection
+
+**Options**:
+- `fragment: boolean` - Parse as fragment vs full document
+- `tabs: boolean` - Use tabs (default: spaces)
+- `spaces: number` - Indent width (default: 4)
+- `commas: boolean` - Attribute separator style
+- `doubleQuotes: boolean` - Quote style
+
+## F5: Templatizer Implementation
+
+**Input**: `htmlOnly` string from F4 (HTML with style/script extracted)
+
+**Output files** (see `dissected/` for examples):
+| File | Purpose |
+|------|---------|
+| `document-head.mustache` | Pug head template with body includes |
+| `body.mustache` | Pug body with `{{{selector}}}` placeholders |
+| `full-content.json` | selector → pugString mapping |
+| `meta.json` | selector → {pugKey, pugString, content} |
+| `<id>.json` | Dynamic section content |
+| `list-item:<id>.json` | Dynamic-list item templates |
+
+**Key PoC functions to port** (from `src/templatizor.js`):
+- `templatize()` - Main recursive entry
+- `templatizeStatic/Dynamic/DynamicList()` - Content handlers
+- `templatizeAttributes()` - aria-label, placeholder
+- `newselector()`, `addIndexInfo()` - CSS selector building
+- `toPug()`, `toPugFragment()` - HTML → Pug via html2pug
+
+**Note**: `htmlTags.js` is imported but unused in PoC - skip it.
 
 ## Key Data Structures
 

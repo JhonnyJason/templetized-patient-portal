@@ -47,7 +47,8 @@ project/
 
 - **Runtime**: Node.js (CLI tool and target projects)
 - **Templating**: Pug, Mustache (intermediate)
-- **HTML Parsing**: linkedom
+- **HTML Parsing**: linkedom (DOM manipulation and html2pug conversion)
+- **HTML→Pug**: Custom html2pug fork (local copy from JhonnyJason/html2pug)
 
 ## Current State
 
@@ -55,7 +56,7 @@ project/
 - Node.js CLI tool: `templatize-html`
 - Module structure initialized
 - F4 (Asset Extraction) implemented via `htmlslicer.js`
-- Pipeline: input parsing → asset extraction → (F5-F8 pending)
+- **Next: F5 (Content & Templates)** - Migration from PoC `templatizor.js`
 
 **Proof-of-concept** (`src/` - Deno, reference only):
 - `deno task dissect-html` - Extract style/script from HTML
