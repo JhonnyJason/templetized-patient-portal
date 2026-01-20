@@ -1,10 +1,11 @@
 # Status
-Phase: Planning
+Phase: Implementing
 Version: v0.1.0
-TaskNr: 0
+TaskNr: 4
 
-## Current ImplementationState
-The first proof of concept implementation exists.
+## Current Implementation State
+The proof of concept implementation might be partially resued for the real implementation.
+The cli-implementation is living in it's own directory.
 
 See progress of feature implementation in `./features.md`.
 

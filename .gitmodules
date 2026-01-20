@@ -1,3 +1,6 @@
 [submodule "output"]
 	path = output
 	url = git@github.com:JhonnyJason/templatized-artifacts-patientenportal.git
+[submodule "cli-implementation"]
+	path = cli-implementation
+	url = git@github.com:JhonnyJason/templatize-html.git

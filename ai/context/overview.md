@@ -38,20 +38,26 @@ project/
 
 | Step | Action | Output |
 |------|--------|--------|
-| 1 | `npm decompose-static <path>/index.html` | Decomposed files to target structure |
+| 1 | `npx templatize-html <path>/index.html` | Decomposed files to target structure |
 | 2 | Merge extracted content with existing `content/<lang>/<pagename>.json` | Updated content + overwrite summary |
 | 3 | Dynamic content mapping (manual/AI assisted) | Persistent mapping file |
 | 4 | Implement API + client-side rendering | Working dynamic content |
 
 ## Technology Stack
 
-- **Runtime**: Deno (tool), Node/npm (target projects)
+- **Runtime**: Node.js (CLI tool and target projects)
 - **Templating**: Pug, Mustache (intermediate)
-- **HTML Parsing**: @b-fuze/deno-dom
+- **HTML Parsing**: linkedom
 
 ## Current State
 
-Proof-of-concept pipeline exists with these tasks:
+**CLI Implementation** (`cli-implementation/` - git submodule):
+- Node.js CLI tool: `templatize-html`
+- Module structure initialized
+- F4 (Asset Extraction) implemented via `htmlslicer.js`
+- Pipeline: input parsing → asset extraction → (F5-F8 pending)
+
+**Proof-of-concept** (`src/` - Deno, reference only):
 - `deno task dissect-html` - Extract style/script from HTML
 - `deno task templatize-stripped` - Generate templates + content JSON
 - `deno task render-normalized` - Placeholder rendering for pattern detection
@@ -80,10 +86,27 @@ CSS Selector → pugKey → pugString → content
 
 ## File Reference
 
-- `src/dissect-html.js` - HTML → stripped.html + style.css + script.js
-- `src/templatizor.js` - stripped.html → templates + content JSON
-- `src/render-normalized.js` - Placeholder rendering
-- `src/htmlTags.js` - HTML5 tag categorization
+**CLI Implementation** (`cli-implementation/`):
+- `index.js` - Entry point, module initialization
+- `config.js` - App configuration (name, version, default outputMap)
+- `src/allmodules.js` - Module aggregator (modules with initialize)
+
+*Modules* (with initialize):
+- `src/debugmodule.js` - Debug/logging utilities
+- `src/mainprocessmodule.js` - Main pipeline (F2-F8)
+- `src/pathmodule.js` - Path resolution utilities
+- `src/startup.js` - Startup orchestration
+
+*Utilities* (no initialize, direct import):
+- `src/cliargument.js` - CLI argument parsing
+- `src/fileutils.js` - File I/O with hash-based change detection, metaData.json management
+- `src/htmlslicer.js` - Asset extraction utility (F4)
+
+**Proof-of-concept** (`src/` - Deno):
+- `dissect-html.js` - HTML → stripped.html + style.css + script.js
+- `templatizor.js` - stripped.html → templates + content JSON
+- `render-normalized.js` - Placeholder rendering
+- `htmlTags.js` - HTML5 tag categorization
 
 ## Pipeline Flow
 

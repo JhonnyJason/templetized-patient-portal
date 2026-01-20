@@ -1,5 +1,33 @@
 # Operational Notes
 
+## CLI Implementation Structure
+
+```
+cli-implementation/           (git submodule → templatize-html repo)
+├── index.js                  Entry point, initializes modules, calls cliStartup()
+├── config.js                 App name, version, default outputMap
+├── package.json              npm package config, linkedom dependency
+└── src/
+    ├── allmodules.js         Aggregates modules with initialize()
+    │
+    │   # Modules (with initialize, in allmodules)
+    ├── debugmodule.js        Logging (debug, info, error)
+    ├── mainprocessmodule.js  Main pipeline implementation (F2-F8)
+    ├── pathmodule.js         Path utilities (derivePagename, resolveOutputPaths)
+    ├── startup.js            Orchestrates startup via cliStartup()
+    │
+    │   # Utilities (no initialize, direct import)
+    ├── cliargument.js        Parse process.argv (input.html, output-map.json)
+    ├── fileutils.js          File I/O with hash-based change detection, metaData.json management
+    └── htmlslicer.js         Asset extraction: dissect(html) → {htmlOnly, script, style}
+```
+
+**Module pattern**: Exports `initialize(cfg)`, aggregated in `allmodules.js`, called at startup.
+
+**Utility pattern**: No initialize, imported directly where needed.
+
+**Migration approach**: Copy logic from `src/` (Deno PoC) adapting for Node.js + linkedom.
+
 ## Key Data Structures
 
 ### meta.json
@@ -52,7 +80,7 @@ Needs decomposition into:
 
 ## Target Output Structure
 
-For `npm decompose-static path/to/index.html`:
+For `npx templatize-html path/to/index.html`:
 
 ```
 sources/
