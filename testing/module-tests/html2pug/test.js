@@ -95,7 +95,8 @@ test('uses div tag shorthand when id/class is present', t => {
 })
 
 test('removes whitespace between HTML elements', t => {
-  const html = `<ul class="list">
+  const html = 
+`<ul class="list">
   <li>one</li>
   <li>two</li>
 
@@ -105,7 +106,8 @@ test('removes whitespace between HTML elements', t => {
   <li>four</li>
 </ul>`
 
-  const pug = `ul.list
+  const pug = 
+`ul.list
   li one
   li two
   li three

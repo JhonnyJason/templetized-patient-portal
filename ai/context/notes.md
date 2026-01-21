@@ -34,6 +34,21 @@ cli-implementation/           (git submodule → templatize-html repo)
 
 **Migration approach**: Copy logic from `src/` (Deno PoC) adapting for Node.js + linkedom.
 
+## fileutils API
+
+All write functions use hash-based change detection (returns `true` if written, `false` if unchanged).
+
+| Function | Description |
+|----------|-------------|
+| `readInputFile()` | Read HTML input file |
+| `writeScript(content)` | Write script.js |
+| `writeStyle(content)` | Write style.css |
+| `writeHeadMustache(content)` | Write document-head.mustache |
+| `writeBodyMustache(content)` | Write body.mustache |
+| `writeStaticContent(content)` | Write static content JSON |
+| `writeMappingsFile(fileName, content)` | Write to mappings dir (e.g., meta.json) |
+| `writeDynamicContentFile(fileName, content)` | Write to dynamic content dir |
+
 ## html2pug Dependency
 
 Custom fork: `github.com/JhonnyJason/html2pug` (stripped of unnecessary dependencies)
@@ -58,11 +73,20 @@ cli-implementation/src/html2pug/
 - `commas: boolean` - Attribute separator style
 - `doubleQuotes: boolean` - Quote style
 
-## F5: Templatizer Implementation
+**Gotcha**: Text content with `>` characters gets split into multiple text nodes by linkedom, causing html2pug to output separate `| ` lines. Avoid special characters in placeholder keys.
+
+## F5: Templatizer Implementation (DONE)
 
 **Input**: `htmlOnly` string from F4 (HTML with style/script extracted)
 
-**Output files** (see `dissected/` for examples):
+**API**: `templatize(htmlOnly)` → returns object with:
+- `documentHead` - Pug head template with includes (string)
+- `body` - Pug body with `{{{selector}}}` placeholders (string)
+- `fullContent` - selector → pugString mapping (object)
+- `meta` - selector → {pugKey, pugString, content} (object)
+- `dynamicFiles` - map of id → meta for dynamic sections (object)
+
+**Output files** (written by fileutils via mainprocessmodule):
 | File | Purpose |
 |------|---------|
 | `document-head.mustache` | Pug head template with body includes |
@@ -72,32 +96,38 @@ cli-implementation/src/html2pug/
 | `<id>.json` | Dynamic section content |
 | `list-item:<id>.json` | Dynamic-list item templates |
 
-**Key PoC functions to port** (from `src/templatizor.js`):
-- `templatize()` - Main recursive entry
-- `templatizeStatic/Dynamic/DynamicList()` - Content handlers
-- `templatizeAttributes()` - aria-label, placeholder
-- `newselector()`, `addIndexInfo()` - CSS selector building
+**Key internal functions** (ported from PoC):
+- `processNode()` - Main recursive entry
+- `processStatic/Dynamic/DynamicList()` - Content handlers
+- `processAttributes()` - aria-label, placeholder extraction
+- `newSelector()`, `addIndexInfo()` - CSS selector building
 - `toPug()`, `toPugFragment()` - HTML → Pug via html2pug
 
-**Note**: `htmlTags.js` is imported but unused in PoC - skip it.
+**Note**: Uses `globalThis.pagename` for include paths (set by pathmodule).
 
 ## Key Data Structures
 
 ### meta.json
 
-Maps CSS selectors to pug keys with content:
+Maps CSS selectors to keys with content:
 
 ```json
 " > head > title": {
+    "mustacheKey": "unuMKey0",
     "pugKey": "unuKey0",
     "pugString": "!{templated.unuKey0}",
     "content": "Page Title Here"
 }
 ```
 
+- `mustacheKey` is the placeholder in `.mustache` files: `{{{unuMKey0}}}`
 - `pugKey` becomes the key in `content/<lang>/<pagename>.json`
-- `pugString` is the Pug interpolation syntax
+- `pugString` is the Pug interpolation syntax (mustache renders to this)
 - `content` is the actual text (used for content-based matching)
+
+**Key flow**: `{{{mustacheKey}}}` → mustache renders → `pugString` → pug renders → `content`
+
+**Why separate mustacheKey?** CSS selectors contain `>`, spaces, `:` which linkedom/html2pug misinterpret as text node boundaries, causing broken multiline output. Simple alphanumeric keys avoid this.
 
 ### Dynamic Section Files
 

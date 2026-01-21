@@ -56,7 +56,8 @@ project/
 - Node.js CLI tool: `templatize-html`
 - Module structure initialized
 - F4 (Asset Extraction) implemented via `htmlslicer.js`
-- **Next: F5 (Content & Templates)** - Migration from PoC `templatizor.js`
+- F5 (Content & Templates) implemented via `templatizer.js`
+- **Next: F6-F8** - Dynamic content mappings, merge, Pug generation
 
 **Proof-of-concept** (`src/` - Deno, reference only):
 - `deno task dissect-html` - Extract style/script from HTML
@@ -102,6 +103,7 @@ CSS Selector → pugKey → pugString → content
 - `src/cliargument.js` - CLI argument parsing
 - `src/fileutils.js` - File I/O with hash-based change detection, metaData.json management
 - `src/htmlslicer.js` - Asset extraction utility (F4)
+- `src/templatizer.js` - Content extraction + mustache template generation (F5)
 
 **Proof-of-concept** (`src/` - Deno):
 - `dissect-html.js` - HTML → stripped.html + style.css + script.js
